@@ -1,7 +1,7 @@
 {
   "name": "estacionamento-inteligente",
   "version": "1.0.0",
-  "description": "Sistema web para monitoramento de 4 vagas de estacionamento com simulacao, API REST, SQLite e Socket.IO.",
+  "description": "Sistema web para monitoramento de 4 vagas de estacionamento com simulacao, API REST, Firebase e Socket.IO.",
   "main": "server.js",
   "engines": {
     "node": ">=20"
@@ -13,7 +13,7 @@
   "keywords": [
     "esp32",
     "estacionamento",
-    "sqlite",
+    "firebase",
     "socket.io",
     "iot"
   ],
@@ -23,10 +23,8 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.18.3",
-    "pg": "^8.23.0",
-    "socket.io": "^4.7.5",
-    "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7"
+    "firebase-admin": "^12.7.0",
+    "socket.io": "^4.7.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"

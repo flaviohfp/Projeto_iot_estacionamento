@@ -4,7 +4,7 @@ Este guia mostra como a maquete fisica podera enviar dados para o sistema web `E
 
 ## Visao geral
 
-Sensores IR das 4 vagas -> ESP32 -> Wi-Fi -> API Node.js -> SQLite -> Socket.IO -> Dashboard
+Sensores IR das 4 vagas -> ESP32 -> Wi-Fi -> API Node.js -> Firebase Firestore -> Dashboard
 
 Componentes previstos:
 

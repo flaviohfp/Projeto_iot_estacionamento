@@ -75,7 +75,7 @@ function mapEvento(row) {
 
 function createParkingService(db) {
   async function getVagas() {
-    const rows = await db.all("SELECT * FROM vagas ORDER BY numero ASC");
+    const rows = await db.getVagas();
     return rows.map(mapVaga);
   }
 
@@ -84,8 +84,7 @@ function createParkingService(db) {
     const ocupadas = vagas.filter((vaga) => vaga.ocupada).length;
     const livres = TOTAL_VAGAS - ocupadas;
     const taxaOcupacao = Math.round((ocupadas / TOTAL_VAGAS) * 100);
-    const metadata = await db.get("SELECT valor FROM metadata WHERE chave = 'last_update'");
-    const ultimaAtualizacao = metadata?.valor || null;
+    const ultimaAtualizacao = await db.getUltimaAtualizacao();
 
     return {
       total: TOTAL_VAGAS,
@@ -110,7 +109,7 @@ function createParkingService(db) {
   }
 
   async function getHistorico() {
-    const rows = await db.all("SELECT * FROM eventos ORDER BY data_hora DESC, id DESC LIMIT 100");
+    const rows = await db.getHistorico(100);
     return rows.map(mapEvento);
   }
 
@@ -123,79 +122,16 @@ function createParkingService(db) {
 
   async function updateVagaStatus(payload) {
     const update = validatePayload(payload);
-    const vagaAtual = await db.get("SELECT * FROM vagas WHERE numero = ?", update.vaga);
-
-    if (!vagaAtual) {
-      throw createHttpError(404, "Vaga nao encontrada.");
-    }
-
-    const ocupadaAtual = Boolean(vagaAtual.ocupada);
-    if (ocupadaAtual === update.ocupada) {
-      await db.run(
-        "UPDATE metadata SET valor = ? WHERE chave = 'last_update'",
-        update.timestamp
-      );
-      await db.run(
-        "UPDATE vagas SET ultima_atualizacao = ? WHERE numero = ?",
-        update.timestamp,
-        update.vaga
-      );
-      return {
-        changed: false,
-        event: null
-      };
-    }
-
-    const event = await db.transaction(async (tx) => {
-      await tx.run(
-        "UPDATE metadata SET valor = ? WHERE chave = 'last_update'",
-        update.timestamp
-      );
-
-      if (update.ocupada) {
-        await tx.run(
-          "UPDATE vagas SET ocupada = 1, ultima_atualizacao = ?, entrada_atual = ? WHERE numero = ?",
-          update.timestamp,
-          update.timestamp,
-          update.vaga
-        );
-
-        const result = await tx.run(
-          "INSERT INTO eventos (vaga, tipo, data_hora, entrada, saida, duracao_segundos, duracao_texto) VALUES (?, 'ENTRADA', ?, ?, NULL, NULL, NULL)",
-          update.vaga,
-          update.timestamp,
-          update.timestamp
-        );
-
-        return mapEvento(await tx.get("SELECT * FROM eventos WHERE id = ?", result.lastID));
-      } else {
-        const entrada = vagaAtual.entrada_atual || update.timestamp;
-        const duracaoSegundos = Math.max(0, Math.floor((new Date(update.timestamp) - new Date(entrada)) / 1000));
-        const duracaoTexto = formatDuration(duracaoSegundos);
-
-        await tx.run(
-          "UPDATE vagas SET ocupada = 0, ultima_atualizacao = ?, entrada_atual = NULL WHERE numero = ?",
-          update.timestamp,
-          update.vaga
-        );
-
-        const result = await tx.run(
-          "INSERT INTO eventos (vaga, tipo, data_hora, entrada, saida, duracao_segundos, duracao_texto) VALUES (?, 'SAIDA', ?, ?, ?, ?, ?)",
-          update.vaga,
-          update.timestamp,
-          entrada,
-          update.timestamp,
-          duracaoSegundos,
-          duracaoTexto
-        );
-
-        return mapEvento(await tx.get("SELECT * FROM eventos WHERE id = ?", result.lastID));
-      }
+    const result = await db.registrarStatus({
+      vaga: update.vaga,
+      ocupada: update.ocupada,
+      timestamp: update.timestamp,
+      formatDuration
     });
 
     return {
-      changed: true,
-      event
+      changed: result.changed,
+      event: result.event ? mapEvento(result.event) : null
     };
   }
 

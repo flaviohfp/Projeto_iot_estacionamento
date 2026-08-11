@@ -1,189 +1,224 @@
-const fs = require("fs");
-const path = require("path");
+const admin = require("firebase-admin");
 
-const databaseDir = path.join(__dirname, "..", "database");
-const databaseFile = path.join(databaseDir, "estacionamento.sqlite");
+const TOTAL_VAGAS = 4;
 
-async function initializeDatabase() {
-  if (process.env.DATABASE_URL) {
-    return initializePostgresDatabase();
+function parseServiceAccount() {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
+    const json = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, "base64").toString("utf8");
+    return JSON.parse(json);
   }
 
-  return initializeSqliteDatabase();
-}
-
-async function initializeSqliteDatabase() {
-  const sqlite3 = require("sqlite3");
-  const { open } = require("sqlite");
-
-  fs.mkdirSync(databaseDir, { recursive: true });
-
-  const db = await open({
-    filename: databaseFile,
-    driver: sqlite3.Database
-  });
-
-  db.kind = "sqlite";
-  db.transaction = async (callback) => {
-    await db.exec("BEGIN TRANSACTION");
-    try {
-      const result = await callback(db);
-      await db.exec("COMMIT");
-      return result;
-    } catch (error) {
-      await db.exec("ROLLBACK");
-      throw error;
-    }
-  };
-
-  await db.exec("PRAGMA foreign_keys = ON;");
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS vagas (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      numero INTEGER NOT NULL UNIQUE CHECK (numero BETWEEN 1 AND 4),
-      ocupada INTEGER NOT NULL DEFAULT 0,
-      ultima_atualizacao TEXT,
-      entrada_atual TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS eventos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      vaga INTEGER NOT NULL CHECK (vaga BETWEEN 1 AND 4),
-      tipo TEXT NOT NULL CHECK (tipo IN ('ENTRADA', 'SAIDA')),
-      data_hora TEXT NOT NULL,
-      entrada TEXT,
-      saida TEXT,
-      duracao_segundos INTEGER,
-      duracao_texto TEXT,
-      FOREIGN KEY (vaga) REFERENCES vagas(numero)
-    );
-
-    CREATE TABLE IF NOT EXISTS metadata (
-      chave TEXT PRIMARY KEY,
-      valor TEXT
-    );
-  `);
-
-  for (let numero = 1; numero <= 4; numero += 1) {
-    await db.run(
-      "INSERT OR IGNORE INTO vagas (numero, ocupada, ultima_atualizacao, entrada_atual) VALUES (?, 0, NULL, NULL)",
-      numero
-    );
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
   }
 
-  await db.run("INSERT OR IGNORE INTO metadata (chave, valor) VALUES ('last_update', NULL)");
-
-  return db;
-}
-
-function convertPlaceholders(sql) {
-  let index = 0;
-  return sql.replace(/\?/g, () => {
-    index += 1;
-    return `$${index}`;
-  });
-}
-
-function createPostgresAdapter(poolOrClient) {
-  const db = {
-    kind: "postgres",
-    async all(sql, ...params) {
-      const result = await poolOrClient.query(convertPlaceholders(sql), params);
-      return result.rows;
-    },
-    async get(sql, ...params) {
-      const result = await poolOrClient.query(convertPlaceholders(sql), params);
-      return result.rows[0] || null;
-    },
-    async run(sql, ...params) {
-      let query = convertPlaceholders(sql);
-      const isEventInsert = /^\s*INSERT\s+INTO\s+eventos/i.test(query);
-
-      if (isEventInsert && !/\bRETURNING\b/i.test(query)) {
-        query += " RETURNING id";
-      }
-
-      const result = await poolOrClient.query(query, params);
-      return {
-        lastID: result.rows[0]?.id || null,
-        changes: result.rowCount
-      };
-    },
-    async exec(sql) {
-      await poolOrClient.query(sql);
-    }
-  };
-
-  if (typeof poolOrClient.connect === "function") {
-    db.transaction = async (callback) => {
-      const client = await poolOrClient.connect();
-      const tx = createPostgresAdapter(client);
-
-      try {
-        await client.query("BEGIN");
-        const result = await callback(tx);
-        await client.query("COMMIT");
-        return result;
-      } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-      } finally {
-        client.release();
-      }
+  if (
+    process.env.FIREBASE_PROJECT_ID &&
+    process.env.FIREBASE_CLIENT_EMAIL &&
+    process.env.FIREBASE_PRIVATE_KEY
+  ) {
+    return {
+      project_id: process.env.FIREBASE_PROJECT_ID,
+      client_email: process.env.FIREBASE_CLIENT_EMAIL,
+      private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n")
     };
   }
 
-  return db;
+  return null;
 }
 
-async function initializePostgresDatabase() {
-  const { Pool } = require("pg");
+function initializeFirebaseApp() {
+  if (admin.apps.length) {
+    return admin.app();
+  }
 
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_SSL === "false" ? false : { rejectUnauthorized: false }
-  });
+  const serviceAccount = parseServiceAccount();
 
-  const db = createPostgresAdapter(pool);
-
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS vagas (
-      id SERIAL PRIMARY KEY,
-      numero INTEGER NOT NULL UNIQUE CHECK (numero BETWEEN 1 AND 4),
-      ocupada INTEGER NOT NULL DEFAULT 0,
-      ultima_atualizacao TEXT,
-      entrada_atual TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS eventos (
-      id SERIAL PRIMARY KEY,
-      vaga INTEGER NOT NULL CHECK (vaga BETWEEN 1 AND 4),
-      tipo TEXT NOT NULL CHECK (tipo IN ('ENTRADA', 'SAIDA')),
-      data_hora TEXT NOT NULL,
-      entrada TEXT,
-      saida TEXT,
-      duracao_segundos INTEGER,
-      duracao_texto TEXT,
-      FOREIGN KEY (vaga) REFERENCES vagas(numero)
-    );
-
-    CREATE TABLE IF NOT EXISTS metadata (
-      chave TEXT PRIMARY KEY,
-      valor TEXT
-    );
-  `);
-
-  for (let numero = 1; numero <= 4; numero += 1) {
-    await db.run(
-      "INSERT INTO vagas (numero, ocupada, ultima_atualizacao, entrada_atual) VALUES (?, 0, NULL, NULL) ON CONFLICT (numero) DO NOTHING",
-      numero
+  if (!serviceAccount) {
+    throw new Error(
+      "Firebase nao configurado. Defina FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL e FIREBASE_PRIVATE_KEY na Vercel."
     );
   }
 
-  await db.run("INSERT INTO metadata (chave, valor) VALUES ('last_update', NULL) ON CONFLICT (chave) DO NOTHING");
+  return admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+}
 
-  return db;
+function mapVagaDoc(doc) {
+  const data = doc.data() || {};
+  return {
+    numero: Number(data.numero || doc.id),
+    ocupada: Boolean(data.ocupada),
+    ultima_atualizacao: data.ultimaAtualizacao || null,
+    entrada_atual: data.entradaAtual || null
+  };
+}
+
+function mapEventoDoc(doc) {
+  const data = doc.data() || {};
+  return {
+    id: doc.id,
+    vaga: data.vaga,
+    tipo: data.tipo,
+    data_hora: data.dataHora,
+    entrada: data.entrada || null,
+    saida: data.saida || null,
+    duracao_segundos: data.duracaoSegundos ?? null,
+    duracao_texto: data.duracaoTexto || null
+  };
+}
+
+async function initializeDatabase() {
+  initializeFirebaseApp();
+  const firestore = admin.firestore();
+
+  const vagas = firestore.collection("vagas");
+  const metadata = firestore.collection("metadata");
+
+  const batch = firestore.batch();
+
+  for (let numero = 1; numero <= TOTAL_VAGAS; numero += 1) {
+    const ref = vagas.doc(String(numero));
+    const snapshot = await ref.get();
+
+    if (!snapshot.exists) {
+      batch.set(ref, {
+        numero,
+        ocupada: false,
+        ultimaAtualizacao: null,
+        entradaAtual: null
+      });
+    }
+  }
+
+  const statusRef = metadata.doc("status");
+  const statusSnapshot = await statusRef.get();
+  if (!statusSnapshot.exists) {
+    batch.set(statusRef, {
+      ultimaAtualizacao: null
+    });
+  }
+
+  await batch.commit();
+
+  return {
+    kind: "firebase",
+    firestore,
+    async getVagas() {
+      const snapshot = await vagas.orderBy("numero", "asc").get();
+      return snapshot.docs.map(mapVagaDoc);
+    },
+    async getUltimaAtualizacao() {
+      const snapshot = await statusRef.get();
+      return snapshot.exists ? snapshot.data().ultimaAtualizacao || null : null;
+    },
+    async getHistorico(limit = 100) {
+      const snapshot = await firestore
+        .collection("eventos")
+        .orderBy("dataHora", "desc")
+        .limit(limit)
+        .get();
+
+      return snapshot.docs.map(mapEventoDoc);
+    },
+    async registrarStatus({ vaga, ocupada, timestamp, formatDuration }) {
+      const vagaRef = vagas.doc(String(vaga));
+      const eventoRef = firestore.collection("eventos").doc();
+
+      return firestore.runTransaction(async (transaction) => {
+        const vagaSnapshot = await transaction.get(vagaRef);
+
+        if (!vagaSnapshot.exists) {
+          const error = new Error("Vaga nao encontrada.");
+          error.statusCode = 404;
+          throw error;
+        }
+
+        const vagaAtual = mapVagaDoc(vagaSnapshot);
+        if (Boolean(vagaAtual.ocupada) === ocupada) {
+          transaction.set(statusRef, { ultimaAtualizacao: timestamp }, { merge: true });
+          transaction.set(vagaRef, { ultimaAtualizacao: timestamp }, { merge: true });
+
+          return {
+            changed: false,
+            event: null
+          };
+        }
+
+        if (ocupada) {
+          const event = {
+            id: eventoRef.id,
+            vaga,
+            tipo: "ENTRADA",
+            data_hora: timestamp,
+            entrada: timestamp,
+            saida: null,
+            duracao_segundos: null,
+            duracao_texto: null
+          };
+
+          transaction.set(statusRef, { ultimaAtualizacao: timestamp }, { merge: true });
+          transaction.set(vagaRef, {
+            numero: vaga,
+            ocupada: true,
+            ultimaAtualizacao: timestamp,
+            entradaAtual: timestamp
+          }, { merge: true });
+          transaction.set(eventoRef, {
+            vaga,
+            tipo: "ENTRADA",
+            dataHora: timestamp,
+            entrada: timestamp,
+            saida: null,
+            duracaoSegundos: null,
+            duracaoTexto: null
+          });
+
+          return {
+            changed: true,
+            event
+          };
+        }
+
+        const entrada = vagaAtual.entrada_atual || timestamp;
+        const duracaoSegundos = Math.max(0, Math.floor((new Date(timestamp) - new Date(entrada)) / 1000));
+        const duracaoTexto = formatDuration(duracaoSegundos);
+        const event = {
+          id: eventoRef.id,
+          vaga,
+          tipo: "SAIDA",
+          data_hora: timestamp,
+          entrada,
+          saida: timestamp,
+          duracao_segundos: duracaoSegundos,
+          duracao_texto: duracaoTexto
+        };
+
+        transaction.set(statusRef, { ultimaAtualizacao: timestamp }, { merge: true });
+        transaction.set(vagaRef, {
+          numero: vaga,
+          ocupada: false,
+          ultimaAtualizacao: timestamp,
+          entradaAtual: null
+        }, { merge: true });
+        transaction.set(eventoRef, {
+          vaga,
+          tipo: "SAIDA",
+          dataHora: timestamp,
+          entrada,
+          saida: timestamp,
+          duracaoSegundos,
+          duracaoTexto
+        });
+
+        return {
+          changed: true,
+          event
+        };
+      });
+    }
+  };
 }
 
 module.exports = {

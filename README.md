@@ -4,7 +4,7 @@ Sistema web completo para monitorar 4 vagas de estacionamento em modo de simulac
 
 ## Arquitetura
 
-Sensor IR Vaga 1 / 2 / 3 / 4 -> ESP32 -> Wi-Fi -> API Node.js/Express -> SQLite -> Socket.IO -> Dashboard Web
+Sensor IR Vaga 1 / 2 / 3 / 4 -> ESP32 -> Wi-Fi -> API Node.js/Express -> Firebase Firestore -> Socket.IO/Polling -> Dashboard Web
 
 O RTC DS3231 fica conectado ao ESP32 para fornecer data e hora confiaveis. O OLED tambem fica no ESP32 e pode consumir `GET /api/status/display` para mostrar vagas livres.
 
@@ -34,8 +34,9 @@ Crie um arquivo `.env` a partir do `.env.example`:
 PORT=3000
 API_KEY=
 ENABLE_API_KEY=false
-DATABASE_URL=
-DATABASE_SSL=true
+FIREBASE_PROJECT_ID=
+FIREBASE_CLIENT_EMAIL=
+FIREBASE_PRIVATE_KEY=
 ```
 
 Para projeto escolar em rede local, pode deixar `ENABLE_API_KEY=false`. Para exigir chave no futuro, use:
@@ -63,14 +64,15 @@ Configuracao recomendada na Vercel:
 - Output Directory: deixe vazio.
 - Node.js: 20 ou superior.
 
-Para o deploy funcionar com historico persistente, configure um banco PostgreSQL externo e adicione a variavel:
+Para o deploy funcionar, configure o Firebase Firestore e adicione as variaveis do Firebase Admin na Vercel:
 
 ```env
-DATABASE_URL=postgresql://usuario:senha@host:5432/banco
-DATABASE_SSL=true
+FIREBASE_PROJECT_ID=seu-projeto
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@seu-projeto.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nSUA_CHAVE\n-----END PRIVATE KEY-----\n"
 ```
 
-Pode usar Neon, Supabase Postgres ou outro PostgreSQL serverless. Sem `DATABASE_URL`, o app usa SQLite local, que e ideal para rodar no computador, mas nao e armazenamento persistente confiavel na Vercel porque Functions nao devem gravar estado permanente em arquivo local.
+Esses dados ficam em `Firebase Console > Configuracoes do projeto > Contas de servico > Gerar nova chave privada`. Nao coloque essa chave no GitHub; use somente nas variaveis de ambiente da Vercel e no `.env` local.
 
 Na Vercel, o painel usa polling automatico a cada 3 segundos como fallback de tempo real. Localmente, quando executado com `npm start`, ele tambem usa Socket.IO.
 
@@ -189,18 +191,15 @@ Resposta:
 
 ## Banco de dados
 
-O SQLite e criado automaticamente em:
+O banco de dados usado e o Firebase Firestore.
 
-```text
-database/estacionamento.sqlite
-```
+Colecoes principais:
 
-Tabelas principais:
-
-- `vagas`: estado atual das 4 vagas, ultima atualizacao e entrada atual.
+- `vagas`: documentos `1`, `2`, `3` e `4`, com estado atual, ultima atualizacao e entrada atual.
 - `eventos`: historico persistente de entradas e saidas.
+- `metadata/status`: ultima atualizacao geral recebida pela API.
 
-Na primeira execucao, o sistema cria automaticamente as vagas 1, 2, 3 e 4.
+Na primeira execucao, o sistema cria automaticamente os documentos das vagas 1, 2, 3 e 4 no Firestore.
 
 ## Regras de entrada e saida
 
