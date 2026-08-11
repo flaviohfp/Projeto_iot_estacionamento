@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Estacionamento Inteligente</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Dashboard IoT</p>
+      <h1>Estacionamento Inteligente</h1>
+    </div>
+    <div class="system-status" aria-live="polite">
+      <span class="online-dot"></span>
+      <span>Sistema Online</span>
+      <small>Ultima atualizacao: <strong id="last-update">--:--:--</strong></small>
+    </div>
+  </header>
+
+  <main class="dashboard">
+    <section class="section-block">
+      <div class="section-header">
+        <h2>Mapa das Vagas</h2>
+      </div>
+      <div id="parking-map" class="parking-grid"></div>
+    </section>
+
+    <section class="indicators" aria-label="Indicadores do estacionamento">
+      <article class="metric-card">
+        <span>Vagas Livres</span>
+        <strong id="free-count">0</strong>
+      </article>
+      <article class="metric-card">
+        <span>Vagas Ocupadas</span>
+        <strong id="occupied-count">0</strong>
+      </article>
+      <article class="metric-card">
+        <span>Taxa de Ocupacao</span>
+        <strong id="occupancy-rate">0%</strong>
+      </article>
+    </section>
+
+    <section class="availability-section section-block">
+      <div class="section-header">
+        <h2>Vagas disponiveis agora</h2>
+      </div>
+      <div id="availability-message" class="availability-message"></div>
+      <div id="available-list" class="available-list"></div>
+    </section>
+
+    <section class="section-block">
+      <div class="section-header">
+        <h2>Historico de Movimentacoes</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Hora</th>
+              <th>Vaga</th>
+              <th>Evento</th>
+              <th>Entrada</th>
+              <th>Saida</th>
+              <th>Tempo de permanencia</th>
+            </tr>
+          </thead>
+          <tbody id="history-body">
+            <tr>
+              <td colspan="7" class="empty-table">Nenhuma movimentacao registrada.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="simulation-panel section-block" aria-label="Simulacao e testes">
+      <div class="section-header">
+        <h2>Simulacao / Testes</h2>
+      </div>
+      <div id="simulation-controls" class="simulation-grid"></div>
+    </section>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/script.js"></script>
+</body>
+</html>
