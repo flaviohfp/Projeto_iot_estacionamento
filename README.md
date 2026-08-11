@@ -34,6 +34,8 @@ Crie um arquivo `.env` a partir do `.env.example`:
 PORT=3000
 API_KEY=
 ENABLE_API_KEY=false
+DATABASE_URL=
+DATABASE_SSL=true
 ```
 
 Para projeto escolar em rede local, pode deixar `ENABLE_API_KEY=false`. Para exigir chave no futuro, use:
@@ -47,6 +49,42 @@ Quando habilitado, envie a chave no cabecalho HTTP:
 
 ```http
 X-API-Key: sua-chave-aqui
+```
+
+## Deploy na Vercel
+
+O projeto ja possui `vercel.json` e `api/index.js`, entao pode ser importado na Vercel como um projeto Node.js simples.
+
+Configuracao recomendada na Vercel:
+
+- Framework Preset: `Other`.
+- Install Command: `npm install`.
+- Build Command: deixe vazio.
+- Output Directory: deixe vazio.
+- Node.js: 20 ou superior.
+
+Para o deploy funcionar com historico persistente, configure um banco PostgreSQL externo e adicione a variavel:
+
+```env
+DATABASE_URL=postgresql://usuario:senha@host:5432/banco
+DATABASE_SSL=true
+```
+
+Pode usar Neon, Supabase Postgres ou outro PostgreSQL serverless. Sem `DATABASE_URL`, o app usa SQLite local, que e ideal para rodar no computador, mas nao e armazenamento persistente confiavel na Vercel porque Functions nao devem gravar estado permanente em arquivo local.
+
+Na Vercel, o painel usa polling automatico a cada 3 segundos como fallback de tempo real. Localmente, quando executado com `npm start`, ele tambem usa Socket.IO.
+
+Depois do deploy, teste:
+
+```http
+GET https://SEU-PROJETO.vercel.app/api/health
+GET https://SEU-PROJETO.vercel.app/api/vagas
+```
+
+O ESP32 devera enviar para:
+
+```http
+POST https://SEU-PROJETO.vercel.app/api/vagas/status
 ```
 
 ## Iniciar o servidor
@@ -177,6 +215,12 @@ O ESP32 devera ler os 4 sensores IR, confirmar a estabilidade da leitura e envia
 
 ```http
 POST http://IP_DO_SERVIDOR:3000/api/vagas/status
+```
+
+Se estiver usando Vercel, troque pela URL publica do deploy:
+
+```http
+POST https://SEU-PROJETO.vercel.app/api/vagas/status
 ```
 
 Veja o guia completo em `ESP32_INTEGRACAO.md`.

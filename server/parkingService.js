@@ -114,6 +114,13 @@ function createParkingService(db) {
     return rows.map(mapEvento);
   }
 
+  async function getSnapshot() {
+    return {
+      status: await getStatus(),
+      historico: await getHistorico()
+    };
+  }
+
   async function updateVagaStatus(payload) {
     const update = validatePayload(payload);
     const vagaAtual = await db.get("SELECT * FROM vagas WHERE numero = ?", update.vaga);
@@ -139,43 +146,40 @@ function createParkingService(db) {
       };
     }
 
-    let event = null;
-
-    await db.exec("BEGIN TRANSACTION");
-    try {
-      await db.run(
+    const event = await db.transaction(async (tx) => {
+      await tx.run(
         "UPDATE metadata SET valor = ? WHERE chave = 'last_update'",
         update.timestamp
       );
 
       if (update.ocupada) {
-        await db.run(
+        await tx.run(
           "UPDATE vagas SET ocupada = 1, ultima_atualizacao = ?, entrada_atual = ? WHERE numero = ?",
           update.timestamp,
           update.timestamp,
           update.vaga
         );
 
-        const result = await db.run(
+        const result = await tx.run(
           "INSERT INTO eventos (vaga, tipo, data_hora, entrada, saida, duracao_segundos, duracao_texto) VALUES (?, 'ENTRADA', ?, ?, NULL, NULL, NULL)",
           update.vaga,
           update.timestamp,
           update.timestamp
         );
 
-        event = mapEvento(await db.get("SELECT * FROM eventos WHERE id = ?", result.lastID));
+        return mapEvento(await tx.get("SELECT * FROM eventos WHERE id = ?", result.lastID));
       } else {
         const entrada = vagaAtual.entrada_atual || update.timestamp;
         const duracaoSegundos = Math.max(0, Math.floor((new Date(update.timestamp) - new Date(entrada)) / 1000));
         const duracaoTexto = formatDuration(duracaoSegundos);
 
-        await db.run(
+        await tx.run(
           "UPDATE vagas SET ocupada = 0, ultima_atualizacao = ?, entrada_atual = NULL WHERE numero = ?",
           update.timestamp,
           update.vaga
         );
 
-        const result = await db.run(
+        const result = await tx.run(
           "INSERT INTO eventos (vaga, tipo, data_hora, entrada, saida, duracao_segundos, duracao_texto) VALUES (?, 'SAIDA', ?, ?, ?, ?, ?)",
           update.vaga,
           update.timestamp,
@@ -185,14 +189,9 @@ function createParkingService(db) {
           duracaoTexto
         );
 
-        event = mapEvento(await db.get("SELECT * FROM eventos WHERE id = ?", result.lastID));
+        return mapEvento(await tx.get("SELECT * FROM eventos WHERE id = ?", result.lastID));
       }
-
-      await db.exec("COMMIT");
-    } catch (error) {
-      await db.exec("ROLLBACK");
-      throw error;
-    }
+    });
 
     return {
       changed: true,
@@ -204,6 +203,7 @@ function createParkingService(db) {
     getStatus,
     getDisplayStatus,
     getHistorico,
+    getSnapshot,
     updateVagaStatus
   };
 }

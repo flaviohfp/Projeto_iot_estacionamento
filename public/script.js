@@ -1,5 +1,3 @@
-const socket = io();
-
 const parkingMap = document.getElementById("parking-map");
 const simulationControls = document.getElementById("simulation-controls");
 const freeCount = document.getElementById("free-count");
@@ -12,6 +10,7 @@ const lastUpdate = document.getElementById("last-update");
 
 let currentStatus = null;
 let timerId = null;
+let pollingId = null;
 
 function formatDateTime(isoString) {
   if (!isoString) {
@@ -129,6 +128,12 @@ function renderSimulation(status) {
           const data = await response.json().catch(() => ({}));
           throw new Error(data.error || "Falha ao atualizar vaga.");
         }
+
+        const data = await response.json();
+        renderAll({
+          status: data.status,
+          historico: data.historico || []
+        });
       } catch (error) {
         alert(error.message);
         event.target.checked = !ocupada;
@@ -207,15 +212,30 @@ async function loadInitialData() {
   });
 }
 
-socket.on("parking:update", renderAll);
+function setupRealtime() {
+  const socketScript = document.createElement("script");
+  socketScript.src = "/socket.io/socket.io.js";
+  socketScript.onload = () => {
+    if (!window.io) {
+      return;
+    }
+
+    const socket = window.io();
+    socket.on("parking:update", renderAll);
+  };
+  document.head.appendChild(socketScript);
+}
 
 loadInitialData().catch((error) => {
   availabilityMessage.textContent = error.message;
   availabilityMessage.classList.add("full");
 });
 
+setupRealtime();
 timerId = window.setInterval(updateRunningDurations, 1000);
+pollingId = window.setInterval(loadInitialData, 3000);
 
 window.addEventListener("beforeunload", () => {
   window.clearInterval(timerId);
+  window.clearInterval(pollingId);
 });

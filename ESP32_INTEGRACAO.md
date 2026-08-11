@@ -81,6 +81,8 @@ Este exemplo usa `WiFi.h` e `HTTPClient.h`. Ajuste os pinos dos sensores, o nome
 const char* WIFI_SSID = "NOME_DA_REDE";
 const char* WIFI_PASSWORD = "SENHA_DA_REDE";
 
+// Local:  http://192.168.0.100:3000/api/vagas/status
+// Vercel: https://SEU-PROJETO.vercel.app/api/vagas/status
 const char* SERVER_URL = "http://192.168.0.100:3000/api/vagas/status";
 
 const int TOTAL_VAGAS = 4;
