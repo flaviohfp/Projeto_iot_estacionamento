@@ -1,10 +1,10 @@
 # Estacionamento Inteligente
 
-Sistema web completo para monitorar 4 vagas de estacionamento em modo de simulacao, preparado para receber dados reais de uma maquete com ESP32, sensores IR, RTC DS3231 e display OLED I2C.
+Sistema web completo para monitorar 4 vagas de estacionamento em modo de simulacao e com dados reais de uma maquete com ESP32, sensores IR, RTC DS3231 opcional e display OLED I2C opcional.
 
 ## Arquitetura
 
-Sensor IR Vaga 1 / 2 / 3 / 4 -> ESP32 -> Wi-Fi -> API Node.js/Express -> Firebase Firestore -> Socket.IO/Polling -> Dashboard Web
+Sensor IR Vaga 1 / 2 / 3 / 4 -> ESP32 com Arduino IDE -> Wi-Fi -> API Node.js/Express -> Banco local ou Firebase Firestore -> Socket.IO/Polling -> Dashboard Web
 
 O RTC DS3231 fica conectado ao ESP32 para fornecer data e hora confiaveis. O OLED tambem fica no ESP32 e pode consumir `GET /api/status/display` para mostrar vagas livres.
 
@@ -34,12 +34,17 @@ Crie um arquivo `.env` a partir do `.env.example`:
 PORT=3000
 API_KEY=
 ENABLE_API_KEY=false
+USE_LOCAL_DATABASE=true
 FIREBASE_PROJECT_ID=
 FIREBASE_CLIENT_EMAIL=
 FIREBASE_PRIVATE_KEY=
 ```
 
-Para projeto escolar em rede local, pode deixar `ENABLE_API_KEY=false`. Para exigir chave no futuro, use:
+Para projeto escolar em rede local, use `USE_LOCAL_DATABASE=true` e pode deixar `ENABLE_API_KEY=false`. Assim o servidor funciona sem Firebase e sem internet, ideal para testar com a maquete.
+
+Para usar Firebase, coloque `USE_LOCAL_DATABASE=false` e preencha as variaveis do Firebase Admin.
+
+Para exigir chave no futuro, use:
 
 ```env
 ENABLE_API_KEY=true
@@ -105,6 +110,38 @@ Acesse:
 
 http://localhost:3000
 
+## Usar com a maquete e Arduino/ESP32
+
+O sketch pronto esta em:
+
+```text
+arduino/EstacionamentoInteligente/EstacionamentoInteligente.ino
+```
+
+Passos:
+
+1. Abra o arquivo `.ino` na Arduino IDE.
+2. Selecione a placa ESP32 correta.
+3. Altere `WIFI_SSID` e `WIFI_PASSWORD`.
+4. Descubra o IP do computador que roda o servidor Node.js.
+5. Altere `SERVER_URL`, por exemplo:
+
+```cpp
+const char* SERVER_URL = "http://192.168.0.100:3000/api/vagas/status/lote";
+```
+
+6. Ajuste os pinos em `sensorPins` conforme a ligacao da maquete.
+7. Envie o sketch para o ESP32.
+
+Por padrao, os sensores usam:
+
+```cpp
+const int sensorPins[4] = { 13, 12, 14, 27 };
+const int SENSOR_DETECTADO = LOW;
+```
+
+Se o seu sensor IR marcar ocupado quando a saida digital estiver em `HIGH`, troque `SENSOR_DETECTADO` para `HIGH`.
+
 ## Como usar a simulacao
 
 No painel `Simulacao / Testes`, alterne cada vaga entre livre e ocupada. O simulador chama a mesma API que o ESP32 usara futuramente:
@@ -166,6 +203,29 @@ Validacoes:
 - `ocupada` precisa ser booleano (`true` ou `false`);
 - eventos repetidos nao sao gravados se o estado nao mudou.
 
+### Atualizar as 4 vagas de uma vez
+
+Esta rota e a recomendada para o ESP32 da maquete:
+
+```http
+POST /api/vagas/status/lote
+Content-Type: application/json
+```
+
+```json
+{
+  "vagas": [
+    { "vaga": 1, "ocupada": true },
+    { "vaga": 2, "ocupada": false },
+    { "vaga": 3, "ocupada": false },
+    { "vaga": 4, "ocupada": true }
+  ],
+  "timestamp": "2026-08-11T14:32:00"
+}
+```
+
+O campo `timestamp` tambem e opcional nessa rota. Quando enviado no nivel principal, vale para todas as vagas do lote.
+
 ### Historico
 
 ```http
@@ -191,7 +251,9 @@ Resposta:
 
 ## Banco de dados
 
-O banco de dados usado e o Firebase Firestore.
+Em laboratorio, o sistema pode usar banco local em memoria com `USE_LOCAL_DATABASE=true`. Ele funciona enquanto o servidor estiver ligado e e suficiente para testar a maquete, o dashboard, a API e o historico.
+
+Para deploy ou persistencia real, use Firebase Firestore.
 
 Colecoes principais:
 

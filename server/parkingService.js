@@ -36,6 +36,22 @@ function validatePayload(payload) {
   };
 }
 
+function validateBatchPayload(payload) {
+  if (!Array.isArray(payload.vagas)) {
+    throw createHttpError(400, "Lote invalido. Envie um array no campo vagas.");
+  }
+
+  if (payload.vagas.length < 1 || payload.vagas.length > TOTAL_VAGAS) {
+    throw createHttpError(400, "Lote invalido. Envie de 1 a 4 vagas.");
+  }
+
+  const timestamp = payload.timestamp || null;
+  return payload.vagas.map((vagaPayload) => validatePayload({
+    ...vagaPayload,
+    timestamp: vagaPayload.timestamp || timestamp
+  }));
+}
+
 function formatDuration(totalSeconds) {
   if (totalSeconds == null) {
     return null;
@@ -135,12 +151,35 @@ function createParkingService(db) {
     };
   }
 
+  async function updateVagasStatus(payload) {
+    const updates = validateBatchPayload(payload);
+    const results = [];
+
+    for (const update of updates) {
+      const result = await db.registrarStatus({
+        vaga: update.vaga,
+        ocupada: update.ocupada,
+        timestamp: update.timestamp,
+        formatDuration
+      });
+
+      results.push({
+        vaga: update.vaga,
+        changed: result.changed,
+        event: result.event ? mapEvento(result.event) : null
+      });
+    }
+
+    return results;
+  }
+
   return {
     getStatus,
     getDisplayStatus,
     getHistorico,
     getSnapshot,
-    updateVagaStatus
+    updateVagaStatus,
+    updateVagasStatus
   };
 }
 

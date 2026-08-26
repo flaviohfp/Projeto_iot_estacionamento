@@ -74,6 +74,17 @@ async function createApp({ io = null, serveStatic = false } = {}) {
     });
   }));
 
+  app.post("/api/vagas/status/lote", apiKeyMiddleware, asyncHandler(async (req, res) => {
+    const results = await parkingService.updateVagasStatus(req.body);
+    const payload = await publishUpdate();
+    res.json({
+      success: true,
+      results,
+      status: payload.status,
+      historico: payload.historico
+    });
+  }));
+
   app.get("/api/historico", apiKeyMiddleware, asyncHandler(async (req, res) => {
     res.json(await parkingService.getHistorico());
   }));

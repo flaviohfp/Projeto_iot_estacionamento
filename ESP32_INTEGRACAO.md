@@ -13,9 +13,49 @@ Componentes previstos:
 - RTC DS3231 ligado ao ESP32 para data/hora confiavel.
 - Display OLED I2C ligado ao ESP32 para mostrar vagas livres.
 
-## Endpoint principal
+## Sketch pronto
 
-O ESP32 deve enviar mudancas para:
+O codigo para gravar no ESP32 esta em:
+
+```text
+arduino/EstacionamentoInteligente/EstacionamentoInteligente.ino
+```
+
+Antes de enviar para a placa, altere:
+
+- `WIFI_SSID` e `WIFI_PASSWORD`;
+- `SERVER_URL`, usando o IP do computador que esta rodando `npm start`;
+- `sensorPins`, conforme a ligacao real dos sensores na maquete;
+- `SENSOR_DETECTADO`, caso o modulo IR use `HIGH` em vez de `LOW` para objeto detectado.
+
+## Endpoint principal recomendado
+
+O ESP32 deve enviar o estado das vagas para:
+
+```http
+POST http://IP_DO_SERVIDOR:3000/api/vagas/status/lote
+Content-Type: application/json
+```
+
+Corpo:
+
+```json
+{
+  "vagas": [
+    { "vaga": 1, "ocupada": true },
+    { "vaga": 2, "ocupada": false },
+    { "vaga": 3, "ocupada": false },
+    { "vaga": 4, "ocupada": true }
+  ],
+  "timestamp": "2026-08-11T14:32:00"
+}
+```
+
+O campo `timestamp` pode vir do RTC DS3231. Se nao for enviado, o servidor usa a hora do computador.
+
+## Endpoint individual
+
+Tambem existe uma rota individual, util para testes ou simulacao:
 
 ```http
 POST http://IP_DO_SERVIDOR:3000/api/vagas/status
@@ -70,7 +110,29 @@ Recomendacao:
 
 Mesmo assim, o servidor tambem protege contra eventos repetidos: se a vaga ja esta ocupada e o ESP32 envia `ocupada: true` varias vezes, o sistema nao registra novas entradas.
 
-## Exemplo Arduino/ESP32
+## Configuracao padrao do sketch
+
+O sketch usa por padrao:
+
+```cpp
+const int sensorPins[4] = { 13, 12, 14, 27 };
+const int SENSOR_DETECTADO = LOW;
+```
+
+O envio e feito para a rota em lote:
+
+```cpp
+const char* SERVER_URL = "http://192.168.0.100:3000/api/vagas/status/lote";
+```
+
+O display OLED e o RTC DS3231 ficam desativados por padrao para o codigo compilar mesmo sem essas bibliotecas. Para ativar, instale as bibliotecas `RTClib`, `Adafruit GFX Library` e `Adafruit SSD1306`, depois altere:
+
+```cpp
+#define USAR_RTC_DS3231 1
+#define USAR_OLED 1
+```
+
+## Exemplo Arduino/ESP32 individual
 
 Este exemplo usa `WiFi.h` e `HTTPClient.h`. Ajuste os pinos dos sensores, o nome da rede, a senha e o IP do computador que esta rodando o servidor.
 
