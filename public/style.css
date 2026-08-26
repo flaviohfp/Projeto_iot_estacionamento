@@ -4,9 +4,14 @@
   --blue-800: #12345a;
   --blue-100: #e8f1fb;
   --green: #16a34a;
+  --green-dark: #15803d;
   --green-soft: #dcfce7;
   --red: #dc2626;
+  --red-dark: #b91c1c;
   --red-soft: #fee2e2;
+  --amber: #f59e0b;
+  --asphalt: #26313f;
+  --line: #f8fafc;
   --white: #ffffff;
   --gray-50: #f8fafc;
   --gray-100: #eef2f7;
@@ -23,7 +28,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--gray-50);
+  background: linear-gradient(180deg, #f8fafc 0%, #eef4f8 100%);
   color: var(--blue-950);
   font-family: Arial, Helvetica, sans-serif;
 }
@@ -89,13 +94,41 @@ h2 {
   box-shadow: 0 0 0 6px rgba(22, 163, 74, 0.18);
 }
 
+.online-dot.offline {
+  background: var(--red);
+  box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.18);
+}
+
 .dashboard {
   width: min(1180px, calc(100% - 32px));
   margin: 26px auto 44px;
 }
 
-.section-block {
+.section-block,
+.hero-panel {
   margin-top: 22px;
+}
+
+.hero-panel,
+.integration-panel,
+.parking-card,
+.metric-card,
+.table-wrap,
+.simulation-control {
+  background: var(--white);
+  border: 1px solid var(--gray-100);
+  border-radius: 8px;
+}
+
+.hero-panel,
+.metric-card,
+.table-wrap,
+.integration-panel {
+  box-shadow: var(--shadow);
+}
+
+.hero-panel {
+  padding: 18px;
 }
 
 .section-header {
@@ -106,33 +139,99 @@ h2 {
   margin-bottom: 14px;
 }
 
+.panel-kicker {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--gray-500);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.health-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.health-chip {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--blue-100);
+  color: var(--blue-900);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.parking-lot {
+  position: relative;
+  overflow: hidden;
+  padding: 18px;
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.16) 1px, transparent 1px) 0 0 / 25% 100%,
+    linear-gradient(180deg, #313d4c 0%, var(--asphalt) 100%);
+  border: 1px solid #1f2937;
+}
+
+.parking-lot::before {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 16px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(248, 250, 252, 0.75);
+}
+
 .parking-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.parking-card,
-.metric-card {
-  background: var(--white);
-  border: 1px solid var(--gray-100);
-  border-radius: 8px;
-  box-shadow: var(--shadow);
+  gap: 12px;
+  position: relative;
+  z-index: 1;
 }
 
 .parking-card {
   position: relative;
   overflow: hidden;
-  min-height: 210px;
-  padding: 18px;
+  min-height: 240px;
+  padding: 18px 16px 16px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  border-top: 7px solid var(--green);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 28px rgba(7, 20, 38, 0.18);
 }
 
-.parking-card.occupied {
-  border-top-color: var(--red);
+.parking-card::before,
+.parking-card::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--line);
+  opacity: 0.9;
+}
+
+.parking-card::before {
+  left: 0;
+}
+
+.parking-card::after {
+  right: 0;
+}
+
+.parking-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  position: relative;
+  z-index: 1;
 }
 
 .parking-card .label {
@@ -144,43 +243,97 @@ h2 {
 
 .parking-card .number {
   margin-top: 4px;
-  font-size: 1.7rem;
+  font-size: 2.15rem;
   font-weight: 900;
 }
 
 .car-mark {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  width: 48px;
-  height: 34px;
-  border-radius: 18px 18px 8px 8px;
-  background: var(--green-soft);
-  border: 2px solid rgba(22, 163, 74, 0.35);
-}
-
-.car-mark::before,
-.car-mark::after {
-  content: "";
-  position: absolute;
-  bottom: -7px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--blue-950);
+  position: relative;
+  display: block;
+  width: 64px;
+  height: 44px;
+  border-radius: 20px 20px 10px 10px;
+  background: var(--green);
+  border: 3px solid var(--green-dark);
+  flex: 0 0 auto;
 }
 
 .car-mark::before {
-  left: 7px;
+  content: "";
+  position: absolute;
+  left: 13px;
+  right: 13px;
+  top: 7px;
+  height: 14px;
+  border-radius: 10px 10px 4px 4px;
+  background: rgba(255, 255, 255, 0.84);
 }
 
 .car-mark::after {
-  right: 7px;
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -7px;
+  height: 13px;
+  background:
+    radial-gradient(circle at 0 50%, var(--blue-950) 0 6px, transparent 7px),
+    radial-gradient(circle at 100% 50%, var(--blue-950) 0 6px, transparent 7px);
+}
+
+.car-light {
+  position: absolute;
+  top: 2px;
+  right: -12px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--green);
+  border: 2px solid var(--white);
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.18), 0 0 14px rgba(22, 163, 74, 0.65);
 }
 
 .occupied .car-mark {
-  background: var(--red-soft);
-  border-color: rgba(220, 38, 38, 0.35);
+  background: var(--red);
+  border-color: var(--red-dark);
+}
+
+.occupied .car-light {
+  background: var(--red);
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.18), 0 0 14px rgba(220, 38, 38, 0.65);
+}
+
+.sensor-mark {
+  position: absolute;
+  left: 50%;
+  bottom: 82px;
+  width: 36px;
+  height: 36px;
+  transform: translateX(-50%);
+  border: 2px dashed var(--amber);
+  border-radius: 50%;
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.sensor-mark::after {
+  content: "";
+  position: absolute;
+  inset: 11px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+.parking-details {
+  min-height: 56px;
+  color: var(--gray-700);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  position: relative;
+  z-index: 1;
+}
+
+.parking-details strong {
+  color: var(--blue-950);
 }
 
 .status-pill {
@@ -191,6 +344,8 @@ h2 {
   background: var(--green-soft);
   font-size: 0.86rem;
   font-weight: 900;
+  position: relative;
+  z-index: 1;
 }
 
 .occupied .status-pill {
@@ -198,20 +353,9 @@ h2 {
   background: var(--red-soft);
 }
 
-.parking-details {
-  min-height: 56px;
-  color: var(--gray-700);
-  font-size: 0.9rem;
-  line-height: 1.45;
-}
-
-.parking-details strong {
-  color: var(--blue-950);
-}
-
 .indicators {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   margin-top: 22px;
 }
@@ -230,6 +374,34 @@ h2 {
   display: block;
   margin-top: 10px;
   font-size: 2.1rem;
+}
+
+.metric-card small {
+  display: block;
+  margin-top: 7px;
+  color: var(--gray-500);
+  font-weight: 700;
+}
+
+.oled-card {
+  background: var(--blue-950);
+  color: var(--white);
+}
+
+.oled-card span,
+.oled-card small {
+  color: #b7d5ed;
+}
+
+.oled-card strong {
+  color: #63e6be;
+}
+
+.integration-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.7fr);
+  gap: 18px;
+  align-items: stretch;
 }
 
 .availability-message {
@@ -261,12 +433,56 @@ h2 {
   font-weight: 800;
 }
 
+.integration-panel {
+  padding: 18px;
+}
+
+.endpoint-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px;
+  border-radius: 8px;
+  background: var(--blue-100);
+  color: var(--blue-900);
+  min-width: 0;
+}
+
+.endpoint-box span {
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--blue-900);
+  color: var(--white);
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.endpoint-box code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.hardware-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 13px;
+}
+
+.hardware-list span {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--gray-100);
+  color: var(--gray-700);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
 .table-wrap {
   overflow-x: auto;
-  background: var(--white);
-  border: 1px solid var(--gray-100);
-  border-radius: 8px;
-  box-shadow: var(--shadow);
 }
 
 table {
@@ -339,9 +555,6 @@ tr:last-child td {
   justify-content: space-between;
   gap: 12px;
   padding: 15px;
-  border-radius: 8px;
-  background: var(--white);
-  border: 1px solid var(--gray-100);
 }
 
 .simulation-control strong {
@@ -397,7 +610,9 @@ tr:last-child td {
 
 @media (max-width: 980px) {
   .parking-grid,
-  .simulation-grid {
+  .simulation-grid,
+  .indicators,
+  .integration-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -408,7 +623,8 @@ tr:last-child td {
     flex-direction: column;
   }
 
-  .system-status {
+  .system-status,
+  .health-row {
     justify-content: flex-start;
   }
 
@@ -416,7 +632,8 @@ tr:last-child td {
     text-align: left;
   }
 
-  .indicators {
+  .indicators,
+  .integration-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -428,6 +645,14 @@ tr:last-child td {
   }
 
   .parking-card {
-    min-height: 185px;
+    min-height: 220px;
+  }
+
+  .parking-lot {
+    padding: 14px;
+  }
+
+  .hardware-list {
+    grid-template-columns: 1fr;
   }
 }

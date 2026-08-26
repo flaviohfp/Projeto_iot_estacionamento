@@ -9,22 +9,31 @@
 <body>
   <header class="topbar">
     <div>
-      <p class="eyebrow">Dashboard IoT</p>
+      <p class="eyebrow">Projeto IoT - 4 vagas</p>
       <h1>Estacionamento Inteligente</h1>
     </div>
     <div class="system-status" aria-live="polite">
-      <span class="online-dot"></span>
-      <span>Sistema Online</span>
+      <span id="connection-dot" class="online-dot"></span>
+      <span id="connection-text">Conectando</span>
       <small>Ultima atualizacao: <strong id="last-update">--:--:--</strong></small>
     </div>
   </header>
 
   <main class="dashboard">
-    <section class="section-block">
+    <section class="hero-panel">
       <div class="section-header">
-        <h2>Mapa das Vagas</h2>
+        <div>
+          <span class="panel-kicker">Maquete conectada ao site</span>
+          <h2>Mapa das Vagas</h2>
+        </div>
+        <div class="health-row">
+          <span id="database-mode" class="health-chip">Banco: --</span>
+          <span id="realtime-mode" class="health-chip">Tempo real: --</span>
+        </div>
       </div>
-      <div id="parking-map" class="parking-grid"></div>
+      <div class="parking-lot" aria-label="Mapa das quatro vagas do estacionamento">
+        <div id="parking-map" class="parking-grid"></div>
+      </div>
     </section>
 
     <section class="indicators" aria-label="Indicadores do estacionamento">
@@ -40,14 +49,38 @@
         <span>Taxa de Ocupacao</span>
         <strong id="occupancy-rate">0%</strong>
       </article>
+      <article class="metric-card oled-card">
+        <span>Display OLED</span>
+        <strong id="oled-free">0 livres</strong>
+        <small id="oled-list">Vagas: --</small>
+      </article>
     </section>
 
-    <section class="availability-section section-block">
-      <div class="section-header">
-        <h2>Vagas disponiveis agora</h2>
+    <section class="integration-grid">
+      <div class="availability-section section-block">
+        <div class="section-header">
+          <h2>Vagas disponiveis agora</h2>
+        </div>
+        <div id="availability-message" class="availability-message"></div>
+        <div id="available-list" class="available-list"></div>
       </div>
-      <div id="availability-message" class="availability-message"></div>
-      <div id="available-list" class="available-list"></div>
+
+      <div class="integration-panel section-block">
+        <div class="section-header">
+          <h2>Integração ESP32</h2>
+        </div>
+        <div class="endpoint-box">
+          <span>POST</span>
+          <code id="api-endpoint">/api/vagas/status/lote</code>
+        </div>
+        <div class="hardware-list" aria-label="Componentes da maquete">
+          <span>ESP32</span>
+          <span>4 sensores IR</span>
+          <span>4 LEDs RGB</span>
+          <span>OLED I2C</span>
+          <span>RTC DS3231</span>
+        </div>
+      </div>
     </section>
 
     <section class="section-block">
@@ -78,7 +111,7 @@
 
     <section class="simulation-panel section-block" aria-label="Simulacao e testes">
       <div class="section-header">
-        <h2>Simulacao / Testes</h2>
+        <h2>Simulacao dos Sensores</h2>
       </div>
       <div id="simulation-controls" class="simulation-grid"></div>
     </section>

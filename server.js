@@ -7,19 +7,20 @@ const { createApp } = require("./server/app");
 const PORT = Number(process.env.PORT || 3000);
 
 async function start() {
-  const server = http.createServer();
+  const app = await createApp({ serveStatic: true });
+  const server = http.createServer(app);
   const io = new Server(server, {
     cors: {
       origin: "*"
     }
   });
-  const app = await createApp({ io, serveStatic: true });
+
+  app.locals.io = io;
 
   io.on("connection", async (socket) => {
     socket.emit("parking:update", await app.locals.parkingService.getSnapshot());
   });
 
-  server.on("request", app);
   server.listen(PORT, () => {
     console.log(`Estacionamento Inteligente rodando em http://localhost:${PORT}`);
   });

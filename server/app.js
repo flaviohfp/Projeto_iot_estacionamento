@@ -42,6 +42,7 @@ async function createApp({ io = null, serveStatic = false } = {}) {
   const parkingService = createParkingService(db);
 
   app.locals.parkingService = parkingService;
+  app.locals.io = io;
 
   app.use(cors());
   app.use(express.json());
@@ -52,8 +53,8 @@ async function createApp({ io = null, serveStatic = false } = {}) {
 
   async function publishUpdate() {
     const payload = await parkingService.getSnapshot();
-    if (io) {
-      io.emit("parking:update", payload);
+    if (app.locals.io) {
+      app.locals.io.emit("parking:update", payload);
     }
     return payload;
   }
@@ -97,7 +98,7 @@ async function createApp({ io = null, serveStatic = false } = {}) {
     res.json({
       success: true,
       database: db.kind,
-      realtime: io ? "socket.io" : "polling"
+      realtime: app.locals.io ? "socket.io" : "polling"
     });
   }));
 

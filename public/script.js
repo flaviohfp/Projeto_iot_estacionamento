@@ -7,10 +7,25 @@ const availableList = document.getElementById("available-list");
 const availabilityMessage = document.getElementById("availability-message");
 const historyBody = document.getElementById("history-body");
 const lastUpdate = document.getElementById("last-update");
+const connectionDot = document.getElementById("connection-dot");
+const connectionText = document.getElementById("connection-text");
+const databaseMode = document.getElementById("database-mode");
+const realtimeMode = document.getElementById("realtime-mode");
+const apiEndpoint = document.getElementById("api-endpoint");
+const oledFree = document.getElementById("oled-free");
+const oledList = document.getElementById("oled-list");
 
 let currentStatus = null;
 let timerId = null;
 let pollingId = null;
+let healthPollingId = null;
+
+apiEndpoint.textContent = `${window.location.origin}/api/vagas/status/lote`;
+
+function setConnectionState(isOnline, text) {
+  connectionDot.classList.toggle("offline", !isOnline);
+  connectionText.textContent = text;
+}
 
 function formatDateTime(isoString) {
   if (!isoString) {
@@ -46,6 +61,14 @@ function formatDuration(totalSeconds) {
     .join(":");
 }
 
+function formatVagasList(vagas) {
+  if (!vagas.length) {
+    return "--";
+  }
+
+  return vagas.join(", ");
+}
+
 function renderParkingMap(status) {
   parkingMap.innerHTML = status.vagas.map((vaga) => {
     const occupiedClass = vaga.ocupada ? "occupied" : "";
@@ -57,11 +80,16 @@ function renderParkingMap(status) {
 
     return `
       <article class="parking-card ${occupiedClass}" data-vaga="${vaga.numero}">
-        <div>
-          <span class="label">Vaga</span>
-          <div class="number">${vaga.numero}</div>
-          <span class="car-mark" aria-hidden="true"></span>
+        <div class="parking-head">
+          <div>
+            <span class="label">Vaga</span>
+            <div class="number">${vaga.numero}</div>
+          </div>
+          <span class="car-mark" aria-hidden="true">
+            <span class="car-light"></span>
+          </span>
         </div>
+        <span class="sensor-mark" aria-hidden="true"></span>
         <div class="parking-details">${details}</div>
         <span class="status-pill">${vaga.ocupada ? "OCUPADA" : "LIVRE"}</span>
       </article>
@@ -73,6 +101,8 @@ function renderIndicators(status) {
   freeCount.textContent = status.livres;
   occupiedCount.textContent = status.ocupadas;
   occupancyRate.textContent = `${status.taxaOcupacao}%`;
+  oledFree.textContent = `${status.livres} ${status.livres === 1 ? "livre" : "livres"}`;
+  oledList.textContent = `Vagas: ${formatVagasList(status.vagas.filter((vaga) => !vaga.ocupada).map((vaga) => vaga.numero))}`;
 }
 
 function renderAvailability(status) {
@@ -187,6 +217,7 @@ function updateRunningDurations() {
 
 function renderAll(payload) {
   currentStatus = payload.status;
+  setConnectionState(true, "Sistema Online");
   renderParkingMap(payload.status);
   renderIndicators(payload.status);
   renderAvailability(payload.status);
@@ -196,6 +227,24 @@ function renderAll(payload) {
   updateRunningDurations();
 }
 
+async function loadHealth() {
+  try {
+    const response = await fetch("/api/health");
+    if (!response.ok) {
+      throw new Error("Falha no status da API.");
+    }
+
+    const health = await response.json();
+    databaseMode.textContent = `Banco: ${health.database}`;
+    realtimeMode.textContent = `Tempo real: ${health.realtime}`;
+    setConnectionState(true, "Sistema Online");
+  } catch (error) {
+    databaseMode.textContent = "Banco: indisponivel";
+    realtimeMode.textContent = "Tempo real: indisponivel";
+    setConnectionState(false, "API Offline");
+  }
+}
+
 async function loadInitialData() {
   const [statusResponse, historyResponse] = await Promise.all([
     fetch("/api/vagas"),
@@ -203,6 +252,7 @@ async function loadInitialData() {
   ]);
 
   if (!statusResponse.ok || !historyResponse.ok) {
+    setConnectionState(false, "API Offline");
     throw new Error("Nao foi possivel carregar os dados do estacionamento.");
   }
 
@@ -227,15 +277,19 @@ function setupRealtime() {
 }
 
 loadInitialData().catch((error) => {
+  setConnectionState(false, "API Offline");
   availabilityMessage.textContent = error.message;
   availabilityMessage.classList.add("full");
 });
 
+loadHealth();
 setupRealtime();
 timerId = window.setInterval(updateRunningDurations, 1000);
 pollingId = window.setInterval(loadInitialData, 3000);
+healthPollingId = window.setInterval(loadHealth, 10000);
 
 window.addEventListener("beforeunload", () => {
   window.clearInterval(timerId);
   window.clearInterval(pollingId);
+  window.clearInterval(healthPollingId);
 });
