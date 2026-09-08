@@ -1,291 +1,30 @@
-# Estacionamento Inteligente
+﻿# Estacionamento Inteligente
 
-## Usar a ESP32 como servidor do próprio site
+Site para acompanhar as quatro vagas de uma maquete de estacionamento com ESP32. O painel mostra a ocupação das vagas e o histórico de entradas e saídas, com atualização automática.
 
-O novo firmware `arduino/EstacionamentoServidor/EstacionamentoServidor.ino` hospeda o painel e a API na placa, integra os quatro sensores e permite ativar LEDs RGB, OLED e RTC. Acesse pela rede local da maquete. Veja [configuração, ligações e teste de bancada](ESP32_SERVIDOR.md). O modo físico bloqueia a simulação. O restante deste README descreve a alternativa com servidor Node.js.
+## Funcionalidades
 
-Sistema web completo para monitorar 4 vagas de estacionamento em modo de simulacao e com dados reais de uma maquete com ESP32, sensores IR, RTC DS3231 opcional e display OLED I2C opcional.
+- Mapa das quatro vagas, indicando livre ou ocupada.
+- Quantidade de vagas livres, ocupadas e taxa de ocupação.
+- Aviso quando o estacionamento está lotado.
+- Histórico com data, hora e tempo de permanência observado.
+- Status da conexão com a ESP32 e aviso de dados desatualizados.
 
-## Arquitetura
+## Integração com a maquete
 
-Sensor IR Vaga 1 / 2 / 3 / 4 -> ESP32 com Arduino IDE -> Wi-Fi -> API Node.js/Express -> Banco local ou Firebase Firestore -> Socket.IO/Polling -> Dashboard Web
+A ESP32 lê os quatro sensores IR instalados no piso, atualiza os LEDs RGB (verde para livre e vermelho para ocupada) e mostra as vagas disponíveis no OLED. O RTC DS3231 fornece o horário dos registros.
 
-O RTC DS3231 fica conectado ao ESP32 para fornecer data e hora confiaveis. O OLED tambem fica no ESP32 e pode consumir `GET /api/status/display` para mostrar vagas livres.
+A placa pode hospedar o próprio site na rede local. Nesse modo, os sensores controlam as vagas, a simulação fica bloqueada e os últimos 40 eventos são preservados mesmo após desligar a ESP32.
 
-## Instalar Node.js
+Após configurar e gravar o firmware, conecte-se à rede Wi-Fi da maquete e abra [http://192.168.4.1](http://192.168.4.1). As instruções de instalação e ligação estão no [guia da ESP32](ESP32_SERVIDOR.md).
 
-1. Acesse https://nodejs.org/
-2. Baixe a versao LTS.
-3. Instale mantendo as opcoes padrao.
-4. Confirme no terminal:
+## Executar no computador
 
-```bash
-node -v
-npm -v
-```
-
-## Instalar dependencias
+Para conhecer o painel e testar a simulação, use Node.js 20 ou superior. Copie `.env.example` para `.env`, mantenha `USE_LOCAL_DATABASE=true` e execute:
 
 ```bash
 npm install
-```
-
-## Configuracao
-
-Crie um arquivo `.env` a partir do `.env.example`:
-
-```env
-PORT=3000
-API_KEY=
-ENABLE_API_KEY=false
-USE_LOCAL_DATABASE=true
-FIREBASE_PROJECT_ID=
-FIREBASE_CLIENT_EMAIL=
-FIREBASE_PRIVATE_KEY=
-```
-
-Para projeto escolar em rede local, use `USE_LOCAL_DATABASE=true` e pode deixar `ENABLE_API_KEY=false`. Assim o servidor funciona sem Firebase e sem internet, ideal para testar com a maquete.
-
-Para usar Firebase, coloque `USE_LOCAL_DATABASE=false` e preencha as variaveis do Firebase Admin.
-
-Para exigir chave no futuro, use:
-
-```env
-ENABLE_API_KEY=true
-API_KEY=sua-chave-aqui
-```
-
-Quando habilitado, envie a chave no cabecalho HTTP:
-
-```http
-X-API-Key: sua-chave-aqui
-```
-
-## Deploy na Vercel
-
-O projeto ja possui `vercel.json` e `api/index.js`, entao pode ser importado na Vercel como um projeto Node.js simples.
-
-Configuracao recomendada na Vercel:
-
-- Framework Preset: `Other`.
-- Install Command: `npm install`.
-- Build Command: deixe vazio.
-- Output Directory: deixe vazio.
-- Node.js: 20 ou superior.
-
-Para o deploy funcionar, configure o Firebase Firestore e adicione as variaveis do Firebase Admin na Vercel:
-
-```env
-FIREBASE_PROJECT_ID=seu-projeto
-FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@seu-projeto.iam.gserviceaccount.com
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nSUA_CHAVE\n-----END PRIVATE KEY-----\n"
-```
-
-Esses dados ficam em `Firebase Console > Configuracoes do projeto > Contas de servico > Gerar nova chave privada`. Nao coloque essa chave no GitHub; use somente nas variaveis de ambiente da Vercel e no `.env` local.
-
-Na Vercel, o painel usa polling automatico a cada 3 segundos como fallback de tempo real. Localmente, quando executado com `npm start`, ele tambem usa Socket.IO.
-
-Depois do deploy, teste:
-
-```http
-GET https://SEU-PROJETO.vercel.app/api/health
-GET https://SEU-PROJETO.vercel.app/api/vagas
-```
-
-O ESP32 devera enviar para:
-
-```http
-POST https://SEU-PROJETO.vercel.app/api/vagas/status
-```
-
-## Iniciar o servidor
-
-```bash
 npm start
 ```
 
-Modo desenvolvimento, com reinicio automatico:
-
-```bash
-npm run dev
-```
-
-Acesse:
-
-http://localhost:3000
-
-## Usar com a maquete e Arduino/ESP32
-
-O sketch pronto esta em:
-
-```text
-arduino/EstacionamentoInteligente/EstacionamentoInteligente.ino
-```
-
-Passos:
-
-1. Abra o arquivo `.ino` na Arduino IDE.
-2. Selecione a placa ESP32 correta.
-3. Altere `WIFI_SSID` e `WIFI_PASSWORD`.
-4. Descubra o IP do computador que roda o servidor Node.js.
-5. Altere `SERVER_URL`, por exemplo:
-
-```cpp
-const char* SERVER_URL = "http://192.168.0.100:3000/api/vagas/status/lote";
-```
-
-6. Ajuste os pinos em `sensorPins` conforme a ligacao da maquete.
-7. Envie o sketch para o ESP32.
-
-Por padrao, os sensores usam:
-
-```cpp
-const int sensorPins[4] = { 13, 12, 14, 27 };
-const int SENSOR_DETECTADO = LOW;
-```
-
-Se o seu sensor IR marcar ocupado quando a saida digital estiver em `HIGH`, troque `SENSOR_DETECTADO` para `HIGH`.
-
-## Como usar a simulacao
-
-No painel `Simulacao / Testes`, alterne cada vaga entre livre e ocupada. O simulador chama a mesma API que o ESP32 usara futuramente:
-
-```http
-POST /api/vagas/status
-```
-
-Assim, a regra de entrada, saida, permanencia, banco de dados e atualizacao em tempo real e a mesma para simulacao e hardware real.
-
-## API
-
-### Listar status das vagas
-
-```http
-GET /api/vagas
-```
-
-Resposta:
-
-```json
-{
-  "total": 4,
-  "livres": 2,
-  "ocupadas": 2,
-  "taxaOcupacao": 50,
-  "ultimaAtualizacao": "2026-08-11T14:32:00.000Z",
-  "vagas": [
-    {
-      "numero": 1,
-      "ocupada": false,
-      "ultimaAtualizacao": "2026-08-11T14:30:00.000Z",
-      "entradaAtual": null
-    }
-  ]
-}
-```
-
-### Atualizar uma vaga
-
-```http
-POST /api/vagas/status
-Content-Type: application/json
-```
-
-```json
-{
-  "vaga": 2,
-  "ocupada": true,
-  "timestamp": "2026-08-11T14:32:00"
-}
-```
-
-O campo `timestamp` e opcional. Quando nao for enviado, o servidor usa a data e hora do computador.
-
-Validacoes:
-
-- aceita somente vagas 1, 2, 3 e 4;
-- `ocupada` precisa ser booleano (`true` ou `false`);
-- eventos repetidos nao sao gravados se o estado nao mudou.
-
-### Atualizar as 4 vagas de uma vez
-
-Esta rota e a recomendada para o ESP32 da maquete:
-
-```http
-POST /api/vagas/status/lote
-Content-Type: application/json
-```
-
-```json
-{
-  "vagas": [
-    { "vaga": 1, "ocupada": true },
-    { "vaga": 2, "ocupada": false },
-    { "vaga": 3, "ocupada": false },
-    { "vaga": 4, "ocupada": true }
-  ],
-  "timestamp": "2026-08-11T14:32:00"
-}
-```
-
-O campo `timestamp` tambem e opcional nessa rota. Quando enviado no nivel principal, vale para todas as vagas do lote.
-
-### Historico
-
-```http
-GET /api/historico
-```
-
-Retorna os eventos mais recentes primeiro, com entrada, saida e duracao quando houver.
-
-### Dados para OLED
-
-```http
-GET /api/status/display
-```
-
-Resposta:
-
-```json
-{
-  "livres": 2,
-  "vagasLivres": [1, 3]
-}
-```
-
-## Banco de dados
-
-Em laboratorio, o sistema pode usar banco local em memoria com `USE_LOCAL_DATABASE=true`. Ele funciona enquanto o servidor estiver ligado e e suficiente para testar a maquete, o dashboard, a API e o historico.
-
-Para deploy ou persistencia real, use Firebase Firestore.
-
-Colecoes principais:
-
-- `vagas`: documentos `1`, `2`, `3` e `4`, com estado atual, ultima atualizacao e entrada atual.
-- `eventos`: historico persistente de entradas e saidas.
-- `metadata/status`: ultima atualizacao geral recebida pela API.
-
-Na primeira execucao, o sistema cria automaticamente os documentos das vagas 1, 2, 3 e 4 no Firestore.
-
-## Regras de entrada e saida
-
-- LIVRE -> OCUPADA registra evento de `ENTRADA`.
-- OCUPADA -> LIVRE registra evento de `SAIDA`.
-- Se o mesmo estado chegar varias vezes, apenas atualiza `ultima_atualizacao` e nao cria evento repetido.
-- Quando ocorre saida, o sistema calcula a permanencia com base no horario de entrada salvo.
-
-## Conectar o ESP32 futuramente
-
-O ESP32 devera ler os 4 sensores IR, confirmar a estabilidade da leitura e enviar somente mudancas para:
-
-```http
-POST http://IP_DO_SERVIDOR:3000/api/vagas/status
-```
-
-Se estiver usando Vercel, troque pela URL publica do deploy:
-
-```http
-POST https://SEU-PROJETO.vercel.app/api/vagas/status
-```
-
-Veja o guia completo em `ESP32_INTEGRACAO.md`.
+Abra [http://localhost:3000](http://localhost:3000). Nesse modo, os dados ficam em memória e são apagados ao reiniciar o servidor.
