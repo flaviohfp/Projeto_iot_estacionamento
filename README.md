@@ -1,5 +1,9 @@
 # Estacionamento Inteligente
 
+## Usar a ESP32 como servidor do próprio site
+
+O novo firmware `arduino/EstacionamentoServidor/EstacionamentoServidor.ino` hospeda o painel e a API na placa, integra os quatro sensores e permite ativar LEDs RGB, OLED e RTC. Acesse pela rede local da maquete. Veja [configuração, ligações e teste de bancada](ESP32_SERVIDOR.md). O modo físico bloqueia a simulação. O restante deste README descreve a alternativa com servidor Node.js.
+
 Sistema web completo para monitorar 4 vagas de estacionamento em modo de simulacao e com dados reais de uma maquete com ESP32, sensores IR, RTC DS3231 opcional e display OLED I2C opcional.
 
 ## Arquitetura

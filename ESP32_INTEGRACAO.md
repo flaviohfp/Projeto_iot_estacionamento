@@ -1,5 +1,7 @@
 # Integracao ESP32
 
+**Para a ESP32 servir o próprio site**, use o novo [guia ESP32 como servidor](ESP32_SERVIDOR.md) e o sketch `arduino/EstacionamentoServidor`. Este documento descreve a alternativa em que a placa envia dados para Node.js.
+
 Este guia mostra como a maquete fisica podera enviar dados para o sistema web `Estacionamento Inteligente`.
 
 ## Visao geral

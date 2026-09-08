@@ -19,6 +19,13 @@ let currentStatus = null;
 let timerId = null;
 let pollingId = null;
 let healthPollingId = null;
+let hardwareMode = false;
+let socketStarted = false;
+let loading = false;
+
+async function apiFetch(url, options = {}) {
+  return fetch(url, { ...options, signal: AbortSignal.timeout(5000), cache: "no-store" });
+}
 
 apiEndpoint.textContent = `${window.location.origin}/api/vagas/status/lote`;
 
@@ -123,6 +130,10 @@ function renderAvailability(status) {
 }
 
 function renderSimulation(status) {
+  if (hardwareMode) {
+    simulationControls.textContent = "Modo físico: aproxime ou retire um veículo dos sensores da maquete. LEDs e OLED acompanham as leituras automaticamente.";
+    return;
+  }
   simulationControls.innerHTML = status.vagas.map((vaga) => `
     <div class="simulation-control">
       <div>
@@ -143,7 +154,7 @@ function renderSimulation(status) {
       event.target.disabled = true;
 
       try {
-        const response = await fetch("/api/vagas/status", {
+        const response = await apiFetch("/api/vagas/status", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -217,7 +228,7 @@ function updateRunningDurations() {
 
 function renderAll(payload) {
   currentStatus = payload.status;
-  setConnectionState(true, "Sistema Online");
+  setConnectionState(true, hardwareMode ? "ESP32 conectada • sensores reais" : "Servidor conectado");
   renderParkingMap(payload.status);
   renderIndicators(payload.status);
   renderAvailability(payload.status);
@@ -229,15 +240,22 @@ function renderAll(payload) {
 
 async function loadHealth() {
   try {
-    const response = await fetch("/api/health");
+    const response = await apiFetch("/api/health");
     if (!response.ok) {
       throw new Error("Falha no status da API.");
     }
 
     const health = await response.json();
+    hardwareMode = health.hardware === true;
+    apiEndpoint.textContent = hardwareMode ? `${window.location.origin}/api/vagas` : `${window.location.origin}/api/vagas/status/lote`;
+    document.getElementById("endpoint-method").textContent = hardwareMode ? "GET" : "POST";
+    document.getElementById("hardware-status").textContent = hardwareMode
+      ? `ESP32 servindo o painel • ${health.sensorsReady ? "sensores prontos" : "sensores iniciando"} • ${health.clockSynced ? "relógio sincronizado" : "sem data/hora: conecte à internet ou ajuste o RTC"}`
+      : "Servidor Node.js. Para usar a ESP32 como servidor, abra o endereço da placa conforme o guia de integração.";
+    if (currentStatus) renderSimulation(currentStatus);
+    if (health.realtime === "socket.io" && !socketStarted) { socketStarted = true; setupRealtime(); }
     databaseMode.textContent = `Banco: ${health.database}`;
     realtimeMode.textContent = `Tempo real: ${health.realtime}`;
-    setConnectionState(true, "Sistema Online");
   } catch (error) {
     databaseMode.textContent = "Banco: indisponivel";
     realtimeMode.textContent = "Tempo real: indisponivel";
@@ -246,10 +264,11 @@ async function loadHealth() {
 }
 
 async function loadInitialData() {
-  const [statusResponse, historyResponse] = await Promise.all([
-    fetch("/api/vagas"),
-    fetch("/api/historico")
-  ]);
+  if (loading) return;
+  loading = true;
+  try {
+  const statusResponse = await apiFetch("/api/vagas");
+  const historyResponse = await apiFetch("/api/historico");
 
   if (!statusResponse.ok || !historyResponse.ok) {
     setConnectionState(false, "API Offline");
@@ -260,6 +279,12 @@ async function loadInitialData() {
     status: await statusResponse.json(),
     historico: await historyResponse.json()
   });
+  } catch (error) {
+    setConnectionState(false, "Sem conexão • dados desatualizados");
+    availabilityMessage.textContent = "Sem leitura atual. Verifique a alimentação da ESP32 e a conexão Wi-Fi.";
+    availabilityMessage.classList.add("full");
+    availableList.innerHTML = "";
+  } finally { loading = false; }
 }
 
 function setupRealtime() {
@@ -276,14 +301,7 @@ function setupRealtime() {
   document.head.appendChild(socketScript);
 }
 
-loadInitialData().catch((error) => {
-  setConnectionState(false, "API Offline");
-  availabilityMessage.textContent = error.message;
-  availabilityMessage.classList.add("full");
-});
-
-loadHealth();
-setupRealtime();
+loadHealth().then(loadInitialData);
 timerId = window.setInterval(updateRunningDurations, 1000);
 pollingId = window.setInterval(loadInitialData, 3000);
 healthPollingId = window.setInterval(loadHealth, 10000);
