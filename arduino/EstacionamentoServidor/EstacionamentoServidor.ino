@@ -1,6 +1,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <time.h>
+#include <Preferences.h>
 #include "config.h"
 #include "web_assets.h"
 #if USAR_OLED || USAR_RTC_DS3231
@@ -24,10 +25,40 @@ String entryTime[4], updated[4];
 String events[40];
 int eventHead = 0, eventCount = 0;
 bool oledReady = false;
+bool rtcReady = false;
+bool storageReady = false;
+bool storageHealthy = false;
+Preferences historyStore;
 unsigned long lastWifiAttempt = 0;
+
+void restoreHistory() {
+  storageReady = historyStore.begin("parking", false);
+  storageHealthy = storageReady;
+  if (!storageReady) return;
+  String log = historyStore.getString("events", "");
+  int start = 0;
+  while (start < (int)log.length()) {
+    int end = log.indexOf('\n', start);
+    if (end < 0) break;
+    events[eventHead] = log.substring(start, end);
+    eventHead = (eventHead + 1) % 40;
+    if (eventCount < 40) eventCount++;
+    start = end + 1;
+  }
+}
+void saveHistory() {
+  if (!storageReady) return;
+  String log;
+  for (int i = eventCount; i > 0; i--) log += events[(eventHead - i + 40) % 40] + "\n";
+  storageHealthy = historyStore.putString("events", log) == log.length();
+  if (!storageHealthy) Serial.println("Falha ao persistir historico");
+}
 
 String timestamp() {
   time_t now = time(nullptr);
+#if USAR_RTC_DS3231
+  if (rtcReady && !rtc.lostPower()) now = rtc.now().unixtime();
+#endif
   if (now < 1700000000) return "";
   struct tm utc;
   gmtime_r(&now, &utc);
@@ -86,6 +117,7 @@ void readSensors() {
       ",\"duracaoTexto\":" + (reading ? String("null") : "\"" + String(duration) + "\"") + "}";
     eventHead = (eventHead + 1) % 40;
     if (eventCount < 40) eventCount++;
+    saveHistory();
   }
   if (changed) updateOutputs();
 }
@@ -107,6 +139,7 @@ void json(const String& body, int code = 200) {
 }
 void setup() {
   Serial.begin(115200);
+  restoreHistory();
   for (int i = 0; i < 4; i++) {
     pinMode(SENSOR_PINS[i], INPUT_PULLUP);
     candidate[i] = digitalRead(SENSOR_PINS[i]) == SENSOR_DETECTADO;
@@ -123,7 +156,8 @@ void setup() {
   if (!oledReady) Serial.println("OLED nao encontrado");
 #endif
 #if USAR_RTC_DS3231
-  if (rtc.begin() && !rtc.lostPower()) {
+  rtcReady = rtc.begin();
+  if (rtcReady && !rtc.lostPower()) {
     timeval tv = {}; tv.tv_sec = rtc.now().unixtime(); settimeofday(&tv, nullptr);
   } else Serial.println("RTC ausente ou sem horario valido; ajuste em UTC.");
 #endif
@@ -137,7 +171,22 @@ void setup() {
   server.on("/style.css", HTTP_GET, [] { server.sendHeader("Content-Encoding", "gzip"); server.send_P(200, "text/css", (const char*)ASSET_STYLE, sizeof(ASSET_STYLE)); });
   server.on("/script.js", HTTP_GET, [] { server.sendHeader("Content-Encoding", "gzip"); server.send_P(200, "application/javascript", (const char*)ASSET_SCRIPT, sizeof(ASSET_SCRIPT)); });
   server.on("/api/health", HTTP_GET, [] {
-    json("{\"success\":true,\"hardware\":true,\"simulation\":false,\"database\":\"ESP32 (memoria)\",\"realtime\":\"polling\",\"clockSynced\":" + String(timestamp().length() ? "true" : "false") + ",\"sensorsReady\":" + (sensorsReady() ? "true" : "false") + "}");
+    json("{\"success\":true,\"hardware\":true,\"simulation\":false,\"database\":\"" + String(storageHealthy ? "ESP32 (flash persistente)" : "ESP32 (falha de armazenamento)") + "\",\"realtime\":\"polling\",\"rtcReady\":" + (rtcReady ? "true" : "false") + ",\"oledReady\":" + (oledReady ? "true" : "false") + ",\"clockSynced\":" + String(timestamp().length() ? "true" : "false") + ",\"sensorsReady\":" + (sensorsReady() ? "true" : "false") + "}");
+  });
+  server.on("/api/rtc", HTTP_POST, [] {
+#if USAR_RTC_DS3231
+    if (!rtcReady) { json("{\"error\":\"RTC DS3231 nao encontrado\"}", 503); return; }
+    String value = server.arg("plain");
+    if (value.length() != 10) { json("{\"error\":\"Envie epoch UTC em segundos\"}", 400); return; }
+    for (unsigned int i = 0; i < value.length(); i++) if (!isDigit(value[i])) { json("{\"error\":\"Horario invalido\"}", 400); return; }
+    unsigned long epoch = strtoul(value.c_str(), nullptr, 10);
+    if (epoch < 1700000000UL || epoch > 4102444799UL) { json("{\"error\":\"Horario fora do intervalo\"}", 400); return; }
+    rtc.adjust(DateTime((uint32_t)epoch));
+    timeval tv = {}; tv.tv_sec = epoch; settimeofday(&tv, nullptr);
+    json("{\"success\":true}");
+#else
+    json("{\"error\":\"RTC desabilitado\"}", 503);
+#endif
   });
   server.on("/api/vagas", HTTP_GET, [] {
     if (!sensorsReady()) { json("{\"error\":\"Aguardando estabilizacao dos sensores\"}", 503); return; }

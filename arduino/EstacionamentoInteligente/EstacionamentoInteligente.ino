@@ -29,7 +29,7 @@ const char* SERVER_URL = "http://192.168.0.100:3000/api/vagas/status/lote";
 const char* API_KEY = "";
 
 const int TOTAL_VAGAS = 4;
-const int sensorPins[TOTAL_VAGAS] = { 13, 12, 14, 27 };
+const int sensorPins[TOTAL_VAGAS] = { 32, 33, 25, 26 };
 
 // Em muitos sensores IR digitais: LOW = objeto detectado.
 // Se no seu modulo for o contrario, troque para HIGH.

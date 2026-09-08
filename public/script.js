@@ -247,11 +247,24 @@ async function loadHealth() {
 
     const health = await response.json();
     hardwareMode = health.hardware === true;
+    const rtcButton = document.getElementById("sync-rtc");
+    rtcButton.hidden = !hardwareMode;
+    rtcButton.disabled = !health.rtcReady;
+    rtcButton.onclick = async () => {
+      rtcButton.disabled = true;
+      try {
+        const result = await apiFetch("/api/rtc", { method: "POST", headers: { "Content-Type": "text/plain" }, body: String(Math.floor(Date.now() / 1000)) });
+        if (!result.ok) throw new Error((await result.json()).error || "Falha ao ajustar RTC");
+        await loadHealth();
+      } catch (error) { alert(error.message); }
+      finally { rtcButton.disabled = !health.rtcReady; }
+    };
     apiEndpoint.textContent = hardwareMode ? `${window.location.origin}/api/vagas` : `${window.location.origin}/api/vagas/status/lote`;
     document.getElementById("endpoint-method").textContent = hardwareMode ? "GET" : "POST";
     document.getElementById("hardware-status").textContent = hardwareMode
       ? `ESP32 servindo o painel • ${health.sensorsReady ? "sensores prontos" : "sensores iniciando"} • ${health.clockSynced ? "relógio sincronizado" : "sem data/hora: conecte à internet ou ajuste o RTC"}`
       : "Servidor Node.js. Para usar a ESP32 como servidor, abra o endereço da placa conforme o guia de integração.";
+    if (hardwareMode) document.getElementById("hardware-status").textContent += ` • OLED: ${health.oledReady ? "detectado" : "não detectado"} • RTC: ${health.rtcReady ? "detectado" : "não detectado"}`;
     if (currentStatus) renderSimulation(currentStatus);
     if (health.realtime === "socket.io" && !socketStarted) { socketStarted = true; setupRealtime(); }
     databaseMode.textContent = `Banco: ${health.database}`;

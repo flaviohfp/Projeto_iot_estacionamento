@@ -15,23 +15,25 @@ Use `arduino/EstacionamentoServidor/EstacionamentoServidor.ino` para hospedar o 
 
 | Componente | GPIO |
 | --- | --- |
-| Saídas digitais dos sensores das vagas 1–4 | 13, 14, 27, 26 |
-| Vermelho dos LEDs das vagas 1–4 | 16, 18, 23, 32 |
-| Verde dos LEDs das vagas 1–4 | 17, 19, 25, 33 |
+| Saídas digitais dos sensores das vagas 1–4 (imagem do projeto) | 32, 33, 25, 26 |
+| Vermelho dos LEDs das vagas 1–4 (proposta) | 13, 16, 18, 23 |
+| Verde dos LEDs das vagas 1–4 (proposta) | 14, 17, 19, 27 |
 | SDA do OLED/RTC | 21 |
 | SCL do OLED/RTC | 22 |
 
-Use GND comum. As entradas da ESP32 recebem sinais de 3,3 V: se a saída do sensor for 5 V, use conversão de nível. LEDs precisam de resistor por canal (exemplo: 330 Ω, verificar corrente do LED); deixe o azul desconectado. Os GPIO 16/17 podem estar reservados em placas com PSRAM. Revise a pinagem nessas placas.
+Os GPIO dos LEDs não estão identificados na imagem; os números acima são uma proposta sem conflito com os sensores. SDA/SCL usam os GPIO convencionais 21/22 do ESP32 clássico. Instale um sensor embutido no piso por vaga, apontando para cima, conforme o projeto.
 
-Os periféricos opcionais ficam desligados por padrão para permitir testar somente os sensores. Ative `USAR_LEDS`, `USAR_OLED` e/ou `USAR_RTC_DS3231` em `config.h` conforme a montagem. Para LED de ânodo comum, ajuste `LED_ANODO_COMUM`. Verde indica livre e vermelho ocupado; durante estabilização inicial ficam apagados.
+Use a fonte 5 V / 2 A prevista e GND comum. Alimente a placa pelo terminal apropriado de 5 V/USB, nunca pelo 3V3. As entradas da ESP32 recebem sinais de 3,3 V: se a saída do sensor for 5 V, use conversão de nível. Verifique também os pull-ups I2C dos módulos antes de alimentá-los em 5 V. Use os 12 resistores de **220 Ω**, um em cada canal RGB. O canal azul fica sempre apagado: ligue-o por seu resistor ao GND para cátodo comum, ou a 3,3 V para ânodo comum. Ligue o terminal comum do LED respectivamente a GND ou 3,3 V. Os GPIO 16/17 podem estar reservados em placas com PSRAM; revise nessas placas.
+
+LEDs, OLED e RTC estão **ativados por padrão**, conforme os componentes da imagem. Para LED de ânodo comum, ajuste `LED_ANODO_COMUM`. Verde indica livre e vermelho ocupado; durante estabilização inicial ficam apagados. A imagem não especifica a polaridade dos LEDs nem a interface elétrica exata dos sensores; confirme essas características nos componentes reais.
 
 Para OLED SSD1306 128×64, instale **Adafruit SSD1306** e **Adafruit GFX Library** com dependências. Endereço padrão: 0x3C. Para RTC, instale **RTClib**. OLED e RTC compartilham o I2C. O firmware detecta falhas de inicialização e informa no Serial.
 
 ## Horário e histórico
 
-A placa usa NTP quando tem internet ou um DS3231 previamente ajustado em **UTC**. RTC com perda de alimentação exige ajuste, por exemplo pelo exemplo da RTClib, usando UTC. Este firmware não grava automaticamente NTP no RTC. Sem relógio válido, o painel mostra horários ausentes; não inventa data. A duração de uma permanência é medida com `millis()` (limite de aproximadamente 49 dias).
+A placa consulta o DS3231 em **UTC** para registrar entradas e saídas. Use o botão **Ajustar RTC com horário deste dispositivo** no painel na primeira montagem ou após perda da bateria, conferindo antes o relógio do celular/computador. Isso funciona sem internet. NTP é alternativa quando o RTC não tem horário válido; não é gravado automaticamente no RTC. Sem relógio válido, o painel mostra horários ausentes. A duração de uma permanência é medida com `millis()` (limite de aproximadamente 49 dias). Os horários são exibidos no fuso do dispositivo que abre o site.
 
-O histórico conserva as últimas 40 mudanças em RAM e é apagado ao reiniciar. A primeira leitura estável é uma fotografia inicial, não gera entrada fictícia. Para veículo já presente ao ligar, a permanência é observada a partir da inicialização. Histórico persistente continua disponível na arquitetura Node.js/Firebase anterior.
+O histórico conserva as últimas **40 mudanças na flash da ESP32**, usando Preferences/NVS, e é recuperado ao reiniciar. Cada transição confirmada salva o histórico; o painel informa falhas de armazenamento. Ao ultrapassar 40 eventos, o mais antigo é substituído. A primeira leitura estável é uma fotografia inicial, não gera entrada fictícia. Para veículo já presente ao ligar, a permanência é observada a partir da inicialização; não se reconstrói movimentação ocorrida com a placa desligada. Para retenção maior, use a arquitetura Node.js/Firebase anterior.
 
 ## API e teste de bancada
 
@@ -39,7 +41,8 @@ O histórico conserva as últimas 40 mudanças em RAM e é apagado ao reiniciar.
 - `GET /api/vagas`: quatro leituras confirmadas após 800 ms de estabilidade.
 - `GET /api/historico`: últimas mudanças, mais recentes primeiro.
 - `GET /api/status/display`: vagas livres para outros consumidores.
-- Escritas/simulação são recusadas com HTTP 405. Os sensores são a fonte do estado físico.
+- `POST /api/rtc`: ajusta o DS3231; corpo `text/plain` contendo epoch UTC em segundos. Disponível aos dispositivos na rede local; proteja a senha Wi-Fi da maquete.
+- Escritas nas vagas/simulação são recusadas com HTTP 405. Os sensores são a fonte do estado físico.
 
 Confira uma vaga de cada vez: coloque o veículo, aguarde pelo menos 800 ms mais o polling de até 3 s, confira ocupação no site, LED vermelho e OLED; retire e confira verde, saída e duração. Teste quatro ocupadas, oscilação rápida do sensor, reinício e perda de Wi-Fi. A perda de comunicação mantém a última fotografia e a identifica como desatualizada. Um sensor travado ou desconectado não é diagnosticável com certeza apenas pela entrada digital; verifique alimentação e fiação no teste físico.
 
