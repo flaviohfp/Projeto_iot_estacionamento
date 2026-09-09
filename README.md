@@ -9,9 +9,9 @@ O painel está configurado para o Firebase `iotestacionamento-e2b70`, com leitur
 2. Na aba **Regras**, publique o conteúdo de `firestore.rules`. Ele permite consultar a ocupação e bloqueia alterações pelo navegador.
 3. A ESP32 deverá preencher as quatro vagas, o histórico e `metadata/status`, conforme o contrato abaixo. Enquanto isso, o painel informa que aguarda dados; não apresenta vagas livres fictícias.
 
-A verificação da API durante esta integração retornou `SERVICE_DISABLED`: o Firestore precisa ser ativado no console. O projeto já está selecionado em `.firebaserc`. Com a CLI autenticada, as regras também podem ser publicadas com `firebase deploy --only firestore:rules`.
+A verificação real confirmou leitura autorizada de vagas e histórico. O banco ainda não possui registros das vagas nem `metadata/status`. O projeto já está selecionado em `.firebaserc`. Com a CLI autenticada, as regras também podem ser publicadas com `firebase deploy --only firestore:rules`.
 
-Abra `public/index.html` para consultar o painel. Para testar sem sensores, altere `mode` para `demo` em `public/config.js`: quatro vagas, indicadores, aviso de lotação, histórico e tempo de permanência. A simulação fica salva neste navegador; se o armazenamento estiver bloqueado, dura apenas enquanto a página estiver aberta.
+Abra `public/index.html` para consultar o painel. Para testar sem sensores, clique em **Testar demonstração local**: quatro vagas, indicadores, aviso de lotação, histórico e tempo de permanência. A demonstração não acessa nem modifica o Firebase. A simulação fica salva neste navegador; se o armazenamento estiver bloqueado, dura apenas enquanto a página estiver aberta.
 
 ## Vercel e Firebase Hosting
 

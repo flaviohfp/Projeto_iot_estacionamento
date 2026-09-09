@@ -73,7 +73,7 @@ function renderParkingMap(status) {
   parkingMap.innerHTML = status.vagas.map((vaga) => {
     const occupiedClass = vaga.ocupada ? "occupied" : "";
     const entrada = formatDateTime(vaga.entradaAtual);
-    const duration = vaga.ocupada ? formatDuration(secondsBetween(vaga.entradaAtual)) : null;
+    const duration = vaga.ocupada && vaga.entradaAtual ? formatDuration(secondsBetween(vaga.entradaAtual)) : "--:--:--";
     const details = vaga.ocupada
       ? `<div>Entrada: <strong>${entrada.time}</strong></div><div>Tempo estacionado: <strong data-duration="${vaga.numero}">${duration}</strong></div>`
       : "<div>Disponivel para entrada</div>";
@@ -124,7 +124,7 @@ function renderAvailability(status) {
 
 function renderSimulation(status) {
   if (hardwareMode) {
-    simulationControls.textContent = "Modo físico: aproxime ou retire um veículo dos sensores da maquete. LEDs e OLED acompanham as leituras automaticamente.";
+    simulationControls.textContent = "As leituras reais serão enviadas pela ESP32. Para testar agora, abra a demonstração local no topo da página.";
     return;
   }
   simulationControls.innerHTML = status.vagas.map((vaga) => `
@@ -134,7 +134,7 @@ function renderSimulation(status) {
         <small>${vaga.ocupada ? "Ocupada" : "Livre"}</small>
       </div>
       <label class="switch" title="Alternar estado da vaga ${vaga.numero}">
-        <input type="checkbox" data-sim-vaga="${vaga.numero}" ${vaga.ocupada ? "checked" : ""}>
+        <input type="checkbox" aria-label="Ocupar vaga ${vaga.numero}" data-sim-vaga="${vaga.numero}" ${vaga.ocupada ? "checked" : ""}>
         <span class="slider"></span>
       </label>
     </div>
@@ -182,7 +182,7 @@ function renderHistory(history) {
         <td><span class="event-badge ${isEntry ? "entry" : "exit"}">${isEntry ? "Entrada" : "Saida"}</span></td>
         <td>${event.entrada ? entrada.time : "-"}</td>
         <td>${event.saida ? saida.time : "-"}</td>
-        <td>${(event.saida ? formatDuration(secondsBetween(event.entrada, new Date(event.saida))) : "-")}</td>
+        <td>${(event.saida && event.entrada ? formatDuration(secondsBetween(event.entrada, new Date(event.saida))) : "-")}</td>
       </tr>
     `;
   }).join("");
@@ -198,7 +198,7 @@ function updateRunningDurations() {
     .forEach((vaga) => {
       const element = document.querySelector(`[data-duration="${vaga.numero}"]`);
       if (element) {
-        element.textContent = formatDuration(secondsBetween(vaga.entradaAtual));
+        element.textContent = vaga.entradaAtual ? formatDuration(secondsBetween(vaga.entradaAtual)) : "--:--:--";
       }
     });
 }
@@ -225,10 +225,12 @@ async function loadInitialData() {
       setConnectionState(false, "Sem leitura recente dos sensores");
       availabilityMessage.textContent = "Últimos dados recebidos — aguardando atualização dos sensores.";
       availableList.innerHTML = "";
+      availabilityMessage.classList.remove("full");
     }
   } catch (error) {
-    setConnectionState(false, "Sem conexão — dados indisponíveis ou desatualizados");
+    setConnectionState(error.code === 'waiting-data', error.code === 'waiting-data' ? "Firebase conectado — aguardando ESP32" : "Sem conexão — dados indisponíveis ou desatualizados");
     availabilityMessage.textContent = error.message;
+    availabilityMessage.classList.remove("full");
     availableList.innerHTML = "";
     if (!currentStatus) {
       [freeCount, occupiedCount, occupancyRate, oledFree].forEach(el => el.textContent = "--");
@@ -237,6 +239,10 @@ async function loadInitialData() {
   } finally { loading = false; }
 }
 hardwareMode = ParkingData.mode !== "demo";
+const modeLink = document.getElementById("mode-link");
+modeLink.href = hardwareMode ? "?modo=demo" : window.location.pathname;
+modeLink.textContent = hardwareMode ? "Testar demonstração local" : "Voltar ao painel conectado";
+if (hardwareMode) renderSimulation(null);
 databaseMode.textContent = hardwareMode ? (ParkingData.mode === "firebase" ? "Banco: Firebase" : "Servidor: ESP32") : "Dados: neste navegador";
 realtimeMode.textContent = hardwareMode ? "Atualização: a cada 3 segundos" : "Simulação local";
 apiEndpoint.textContent = ParkingData.mode === "esp32" ? (window.PARKING_CONFIG.esp32Url || "Mesmo endereço do site") : ParkingData.mode === "firebase" ? "Cloud Firestore" : "Integração futura";
@@ -244,6 +250,7 @@ document.getElementById("endpoint-method").textContent = hardwareMode ? "GET" : 
 document.getElementById("hardware-status").textContent = hardwareMode ? "Painel de leitura. Os registros devem ser enviados pela ESP32." : "ESP32 ainda não integrada. Use os controles abaixo para testar o painel.";
 loadInitialData();
 timerId = window.setInterval(updateRunningDurations, 1000);
-if (hardwareMode) pollingId = window.setInterval(loadInitialData, 3000);
+if (hardwareMode) pollingId = window.setInterval(() => { if (!document.hidden) loadInitialData(); }, 3000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) loadInitialData(); });
 window.addEventListener("storage", () => { if (!hardwareMode) loadInitialData(); });
 window.addEventListener("beforeunload", () => { clearInterval(timerId); clearInterval(pollingId); });

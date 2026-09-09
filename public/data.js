@@ -1,8 +1,10 @@
 window.ParkingData = (() => {
   const config = window.PARKING_CONFIG;
-  const mode = config.mode;
+  const mode = new URLSearchParams(window.location.search).get('modo') === 'demo' ? 'demo' : config.mode;
   const key = 'estacionamento-demo-v1';
   let memory;
+  let updates = Promise.resolve();
+  const validDate = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
   function initial() {
     return {status:{vagas:Array.from({length:4},(_,i)=>({numero:i+1,ocupada:false,entradaAtual:null})),ultimaAtualizacao:null},historico:[]};
   }
@@ -10,10 +12,14 @@ window.ParkingData = (() => {
     const vagas=data?.status?.vagas;
     if(!Array.isArray(vagas)||vagas.length!==4||new Set(vagas.map(v=>v.numero)).size!==4||vagas.some(v=>!Number.isInteger(v.numero)||v.numero<1||v.numero>4||typeof v.ocupada!=='boolean'))throw Error('Aguardando dados válidos das quatro vagas.');
     if(data.status.ultimaAtualizacao&&!Number.isFinite(Date.parse(data.status.ultimaAtualizacao)))throw Error('Horário inválido.');
+    vagas.forEach(v => { v.entradaAtual = validDate(v.entradaAtual) ? v.entradaAtual : null; });
     vagas.sort((a,b)=>a.numero-b.numero);
     const ocupadas=vagas.filter(v=>v.ocupada).length;
     Object.assign(data.status,{total:4,ocupadas,livres:4-ocupadas,taxaOcupacao:ocupadas*25});
     data.historico=(Array.isArray(data.historico)?data.historico:[]).filter(e=>Number.isInteger(e.vaga)&&e.vaga>=1&&e.vaga<=4&&['ENTRADA','SAIDA'].includes(e.tipo)).slice(0,100);
+    data.historico.forEach(e => {
+      for (const field of ['dataHora', 'entrada', 'saida']) e[field] = validDate(e[field]) ? e[field] : null;
+    });
     return data;
   }
   async function json(url,options={}) {
@@ -26,7 +32,11 @@ window.ParkingData = (() => {
       }
       if(response.status === 403) throw Error('Firebase: leitura não autorizada. Publique as regras do Firestore do projeto.');
       if(response.status === 404 && /database .*does not exist/i.test(message)) throw Error('Crie o banco Cloud Firestore (default) no console Firebase.');
-      if(response.status === 404) throw Error('Firebase conectado, aguardando os registros da ESP32 no banco.');
+      if(response.status === 404) {
+        const error = Error('Firebase conectado, aguardando os registros da ESP32 no banco.');
+        error.code = 'waiting-data';
+        throw error;
+      }
       throw Error(`Falha na leitura (${response.status}). Tente novamente em instantes.`);
     }
     return response.json();
@@ -51,6 +61,11 @@ window.ParkingData = (() => {
       json(`${base}/vagas?pageSize=4`),json(`${base}/metadata/status`),
       json(`${base}:runQuery`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({structuredQuery:{from:[{collectionId:'eventos'}],orderBy:[{field:{fieldPath:'dataHora'},direction:'DESCENDING'}],limit:100}})})
     ]);
+    if (!vagas.documents?.length) {
+      const error = Error('Firebase conectado, aguardando os registros da ESP32 no banco.');
+      error.code = 'waiting-data';
+      throw error;
+    }
     return normalize({status:{vagas:(vagas.documents||[]).map(d=>fields(d.fields)),ultimaAtualizacao:fields(meta.fields).ultimaAtualizacao},historico:eventos.filter(e=>e.document).map(e=>fields(e.document.fields))});
   }
   async function update({vaga,ocupada}) {
@@ -67,5 +82,9 @@ window.ParkingData = (() => {
     try{localStorage.setItem(key,JSON.stringify(memory));}catch{document.getElementById('database-mode').textContent='Dados temporários: armazenamento indisponível';}
     return structuredClone(memory);
   }
-  return {mode,read,update};
+  return {mode,read,update(payload) {
+    const result = updates.then(() => update(payload));
+    updates = result.catch(() => {});
+    return result;
+  }};
 })();

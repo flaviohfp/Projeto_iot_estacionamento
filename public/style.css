@@ -604,6 +604,13 @@ tr:last-child td {
   background: var(--red);
 }
 
+.switch input:focus-visible + .slider {
+  outline: 3px solid #2563eb;
+  outline-offset: 3px;
+}
+
+#mode-link { display: inline-block; margin-top: 12px; color: inherit; }
+
 .switch input:checked + .slider::before {
   transform: translateX(26px);
 }
