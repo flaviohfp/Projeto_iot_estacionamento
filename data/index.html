@@ -28,7 +28,7 @@
           <h2>Mapa das Vagas</h2>
         </div>
         <div class="health-row">
-          <span id="database-mode" class="health-chip">Banco: --</span>
+          <span id="database-mode" class="health-chip">Banco: Firebase</span>
           <span id="realtime-mode" class="health-chip">Tempo real: --</span>
         </div>
       </div>
@@ -50,10 +50,10 @@
         <span>Taxa de Ocupacao</span>
         <strong id="occupancy-rate">--</strong>
       </article>
-      <article class="metric-card oled-card">
-        <span>Display OLED</span>
-        <strong id="oled-free">--</strong>
-        <small id="oled-list">Vagas: --</small>
+      <article class="metric-card lcd-card">
+        <span>Display LCD</span>
+        <strong id="lcd-free">--</strong>
+        <small id="lcd-list">Vagas: --</small>
       </article>
     </section>
 
@@ -71,16 +71,16 @@
           <h2>Integração ESP32</h2>
         </div>
         <div class="endpoint-box">
-          <span id="endpoint-method">POST</span>
-          <code id="api-endpoint">/api/vagas/status/lote</code>
+          <span id="endpoint-method">FIREBASE</span>
+          <code id="api-endpoint">Cloud Firestore</code>
         </div>
         <p id="hardware-status" role="status">Verificando integração com a maquete...</p>
         <div class="hardware-list" aria-label="Componentes da maquete">
           <span>ESP32</span>
           <span>4 sensores IR</span>
-          <span>4 LEDs RGB</span>
-          <span>OLED I2C</span>
-          <span>RTC DS3231</span>
+          <span>4 LEDs</span>
+          <span>LCD I2C 16x2</span>
+          <span>NTP (horário)</span>
         </div>
       </div>
     </section>
@@ -111,12 +111,6 @@
       </div>
     </section>
 
-    <section class="simulation-panel section-block" aria-label="Simulacao e testes">
-      <div class="section-header">
-        <h2>Simulacao dos Sensores</h2>
-      </div>
-      <div id="simulation-controls" class="simulation-grid"></div>
-    </section>
   </main>
 
   <script src="./config.js"></script>

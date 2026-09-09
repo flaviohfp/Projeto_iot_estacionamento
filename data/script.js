@@ -1,5 +1,4 @@
 const parkingMap = document.getElementById("parking-map");
-const simulationControls = document.getElementById("simulation-controls");
 const freeCount = document.getElementById("free-count");
 const occupiedCount = document.getElementById("occupied-count");
 const occupancyRate = document.getElementById("occupancy-rate");
@@ -12,8 +11,8 @@ const connectionText = document.getElementById("connection-text");
 const databaseMode = document.getElementById("database-mode");
 const realtimeMode = document.getElementById("realtime-mode");
 const apiEndpoint = document.getElementById("api-endpoint");
-const oledFree = document.getElementById("oled-free");
-const oledList = document.getElementById("oled-list");
+const lcdFree = document.getElementById("lcd-free");
+const lcdList = document.getElementById("lcd-list");
 
 let currentStatus = null;
 let timerId = null;
@@ -101,8 +100,8 @@ function renderIndicators(status) {
   freeCount.textContent = status.livres;
   occupiedCount.textContent = status.ocupadas;
   occupancyRate.textContent = `${status.taxaOcupacao}%`;
-  oledFree.textContent = `${status.livres} ${status.livres === 1 ? "livre" : "livres"}`;
-  oledList.textContent = `Vagas: ${formatVagasList(status.vagas.filter((vaga) => !vaga.ocupada).map((vaga) => vaga.numero))}`;
+  lcdFree.textContent = `${status.livres} ${status.livres === 1 ? "livre" : "livres"}`;
+  lcdList.textContent = `Vagas: ${formatVagasList(status.vagas.filter((vaga) => !vaga.ocupada).map((vaga) => vaga.numero))}`;
 }
 
 function renderAvailability(status) {
@@ -120,46 +119,6 @@ function renderAvailability(status) {
   availableList.innerHTML = livres
     .map((vaga) => `<span class="available-chip">Vaga ${vaga.numero}</span>`)
     .join("");
-}
-
-function renderSimulation(status) {
-  if (hardwareMode) {
-    simulationControls.textContent = "As leituras reais serão enviadas pela ESP32. Para testar agora, abra a demonstração local no topo da página.";
-    return;
-  }
-  simulationControls.innerHTML = status.vagas.map((vaga) => `
-    <div class="simulation-control">
-      <div>
-        <strong>Vaga ${vaga.numero}</strong>
-        <small>${vaga.ocupada ? "Ocupada" : "Livre"}</small>
-      </div>
-      <label class="switch" title="Alternar estado da vaga ${vaga.numero}">
-        <input type="checkbox" aria-label="Ocupar vaga ${vaga.numero}" data-sim-vaga="${vaga.numero}" ${vaga.ocupada ? "checked" : ""}>
-        <span class="slider"></span>
-      </label>
-    </div>
-  `).join("");
-
-  simulationControls.querySelectorAll("input[data-sim-vaga]").forEach((input) => {
-    input.addEventListener("change", async (event) => {
-      const vaga = Number(event.target.dataset.simVaga);
-      const ocupada = event.target.checked;
-      event.target.disabled = true;
-
-      try {
-        const data = await ParkingData.update({ vaga, ocupada });
-        renderAll({
-          status: data.status,
-          historico: data.historico || []
-        });
-      } catch (error) {
-        alert(error.message);
-        event.target.checked = !ocupada;
-      } finally {
-        event.target.disabled = false;
-      }
-    });
-  });
 }
 
 function renderHistory(history) {
@@ -209,7 +168,6 @@ function renderAll(payload) {
   renderParkingMap(payload.status);
   renderIndicators(payload.status);
   renderAvailability(payload.status);
-  renderSimulation(payload.status);
   renderHistory(payload.historico || []);
   lastUpdate.textContent = formatDateTime(payload.status.ultimaAtualizacao).time;
   updateRunningDurations();
@@ -228,12 +186,12 @@ async function loadInitialData() {
       availabilityMessage.classList.remove("full");
     }
   } catch (error) {
-    setConnectionState(error.code === 'waiting-data', error.code === 'waiting-data' ? "Firebase conectado — aguardando ESP32" : "Sem conexão — dados indisponíveis ou desatualizados");
+    setConnectionState(false, "Sem conexão — dados indisponíveis ou desatualizados");
     availabilityMessage.textContent = error.message;
     availabilityMessage.classList.remove("full");
     availableList.innerHTML = "";
     if (!currentStatus) {
-      [freeCount, occupiedCount, occupancyRate, oledFree].forEach(el => el.textContent = "--");
+      [freeCount, occupiedCount, occupancyRate, lcdFree].forEach(el => el.textContent = "--");
       parkingMap.textContent = "Aguardando dados das quatro vagas.";
     }
   } finally { loading = false; }
@@ -242,12 +200,15 @@ hardwareMode = ParkingData.mode !== "demo";
 const modeLink = document.getElementById("mode-link");
 modeLink.href = hardwareMode ? "?modo=demo" : window.location.pathname;
 modeLink.textContent = hardwareMode ? "Testar demonstração local" : "Voltar ao painel conectado";
-if (hardwareMode) renderSimulation(null);
-databaseMode.textContent = hardwareMode ? (ParkingData.mode === "firebase" ? "Banco: Firebase" : "Servidor: ESP32") : "Dados: neste navegador";
+
+databaseMode.textContent = hardwareMode ? "Banco: Firebase" : "Dados: neste navegador";
 realtimeMode.textContent = hardwareMode ? "Atualização: a cada 3 segundos" : "Simulação local";
-apiEndpoint.textContent = ParkingData.mode === "esp32" ? (window.PARKING_CONFIG.esp32Url || "Mesmo endereço do site") : ParkingData.mode === "firebase" ? "Cloud Firestore" : "Integração futura";
-document.getElementById("endpoint-method").textContent = hardwareMode ? "GET" : "DEMO";
-document.getElementById("hardware-status").textContent = hardwareMode ? "Painel de leitura. Os registros devem ser enviados pela ESP32." : "ESP32 ainda não integrada. Use os controles abaixo para testar o painel.";
+apiEndpoint.textContent = hardwareMode ? "Cloud Firestore REST" : "LocalStorage";
+document.getElementById("endpoint-method").textContent = hardwareMode ? "FIREBASE" : "DEMO";
+document.getElementById("hardware-status").textContent = hardwareMode
+  ? "ESP32 envia as leituras dos sensores para o Firebase. O painel consulta o histórico e o estado atual."
+  : "Modo demonstração local. Os dados ficam somente neste navegador.";
+
 loadInitialData();
 timerId = window.setInterval(updateRunningDurations, 1000);
 if (hardwareMode) pollingId = window.setInterval(() => { if (!document.hidden) loadInitialData(); }, 3000);

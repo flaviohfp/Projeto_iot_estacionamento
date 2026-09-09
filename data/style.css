@@ -383,17 +383,17 @@ h2 {
   font-weight: 700;
 }
 
-.oled-card {
+.lcd-card {
   background: var(--blue-950);
   color: var(--white);
 }
 
-.oled-card span,
-.oled-card small {
+.lcd-card span,
+.lcd-card small {
   color: #b7d5ed;
 }
 
-.oled-card strong {
+.lcd-card strong {
   color: #63e6be;
 }
 
