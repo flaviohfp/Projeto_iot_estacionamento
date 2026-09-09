@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Estacionamento Inteligente</title>
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
   <header class="topbar">
@@ -74,7 +74,6 @@
           <code id="api-endpoint">/api/vagas/status/lote</code>
         </div>
         <p id="hardware-status" role="status">Verificando integração com a maquete...</p>
-        <button id="sync-rtc" type="button" hidden>Ajustar RTC com horário deste dispositivo</button>
         <div class="hardware-list" aria-label="Componentes da maquete">
           <span>ESP32</span>
           <span>4 sensores IR</span>
@@ -119,6 +118,8 @@
     </section>
   </main>
 
-  <script src="/script.js"></script>
+  <script src="./config.js"></script>
+  <script src="./data.js"></script>
+  <script src="./script.js"></script>
 </body>
 </html>

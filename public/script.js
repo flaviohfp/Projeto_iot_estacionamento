@@ -18,16 +18,9 @@ const oledList = document.getElementById("oled-list");
 let currentStatus = null;
 let timerId = null;
 let pollingId = null;
-let healthPollingId = null;
 let hardwareMode = false;
-let socketStarted = false;
 let loading = false;
 
-async function apiFetch(url, options = {}) {
-  return fetch(url, { ...options, signal: AbortSignal.timeout(5000), cache: "no-store" });
-}
-
-apiEndpoint.textContent = `${window.location.origin}/api/vagas/status/lote`;
 
 function setConnectionState(isOnline, text) {
   connectionDot.classList.toggle("offline", !isOnline);
@@ -154,23 +147,7 @@ function renderSimulation(status) {
       event.target.disabled = true;
 
       try {
-        const response = await apiFetch("/api/vagas/status", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            vaga,
-            ocupada
-          })
-        });
-
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "Falha ao atualizar vaga.");
-        }
-
-        const data = await response.json();
+        const data = await ParkingData.update({ vaga, ocupada });
         renderAll({
           status: data.status,
           historico: data.historico || []
@@ -205,7 +182,7 @@ function renderHistory(history) {
         <td><span class="event-badge ${isEntry ? "entry" : "exit"}">${isEntry ? "Entrada" : "Saida"}</span></td>
         <td>${event.entrada ? entrada.time : "-"}</td>
         <td>${event.saida ? saida.time : "-"}</td>
-        <td>${event.duracaoTexto || "-"}</td>
+        <td>${(event.saida ? formatDuration(secondsBetween(event.entrada, new Date(event.saida))) : "-")}</td>
       </tr>
     `;
   }).join("");
@@ -228,7 +205,7 @@ function updateRunningDurations() {
 
 function renderAll(payload) {
   currentStatus = payload.status;
-  setConnectionState(true, hardwareMode ? "ESP32 conectada • sensores reais" : "Servidor conectado");
+  setConnectionState(true, ParkingData.mode === "demo" ? "Demonstração local" : "Dados recebidos");
   renderParkingMap(payload.status);
   renderIndicators(payload.status);
   renderAvailability(payload.status);
@@ -238,89 +215,35 @@ function renderAll(payload) {
   updateRunningDurations();
 }
 
-async function loadHealth() {
-  try {
-    const response = await apiFetch("/api/health");
-    if (!response.ok) {
-      throw new Error("Falha no status da API.");
-    }
-
-    const health = await response.json();
-    hardwareMode = health.hardware === true;
-    const rtcButton = document.getElementById("sync-rtc");
-    rtcButton.hidden = !hardwareMode;
-    rtcButton.disabled = !health.rtcReady;
-    rtcButton.onclick = async () => {
-      rtcButton.disabled = true;
-      try {
-        const result = await apiFetch("/api/rtc", { method: "POST", headers: { "Content-Type": "text/plain" }, body: String(Math.floor(Date.now() / 1000)) });
-        if (!result.ok) throw new Error((await result.json()).error || "Falha ao ajustar RTC");
-        await loadHealth();
-      } catch (error) { alert(error.message); }
-      finally { rtcButton.disabled = !health.rtcReady; }
-    };
-    apiEndpoint.textContent = hardwareMode ? `${window.location.origin}/api/vagas` : `${window.location.origin}/api/vagas/status/lote`;
-    document.getElementById("endpoint-method").textContent = hardwareMode ? "GET" : "POST";
-    document.getElementById("hardware-status").textContent = hardwareMode
-      ? `ESP32 servindo o painel • ${health.sensorsReady ? "sensores prontos" : "sensores iniciando"} • ${health.clockSynced ? "relógio sincronizado" : "sem data/hora: conecte à internet ou ajuste o RTC"}`
-      : "Servidor Node.js. Para usar a ESP32 como servidor, abra o endereço da placa conforme o guia de integração.";
-    if (hardwareMode) document.getElementById("hardware-status").textContent += ` • OLED: ${health.oledReady ? "detectado" : "não detectado"} • RTC: ${health.rtcReady ? "detectado" : "não detectado"}`;
-    if (currentStatus) renderSimulation(currentStatus);
-    if (health.realtime === "socket.io" && !socketStarted) { socketStarted = true; setupRealtime(); }
-    databaseMode.textContent = `Banco: ${health.database}`;
-    realtimeMode.textContent = `Tempo real: ${health.realtime}`;
-  } catch (error) {
-    databaseMode.textContent = "Banco: indisponivel";
-    realtimeMode.textContent = "Tempo real: indisponivel";
-    setConnectionState(false, "API Offline");
-  }
-}
 
 async function loadInitialData() {
   if (loading) return;
   loading = true;
   try {
-  const statusResponse = await apiFetch("/api/vagas");
-  const historyResponse = await apiFetch("/api/historico");
-
-  if (!statusResponse.ok || !historyResponse.ok) {
-    setConnectionState(false, "API Offline");
-    throw new Error("Nao foi possivel carregar os dados do estacionamento.");
-  }
-
-  renderAll({
-    status: await statusResponse.json(),
-    historico: await historyResponse.json()
-  });
+    renderAll(await ParkingData.read());
+    if (hardwareMode && (!currentStatus.ultimaAtualizacao || Date.now() - new Date(currentStatus.ultimaAtualizacao).getTime() > 30000)) {
+      setConnectionState(false, "Sem leitura recente dos sensores");
+      availabilityMessage.textContent = "Últimos dados recebidos — aguardando atualização dos sensores.";
+      availableList.innerHTML = "";
+    }
   } catch (error) {
-    setConnectionState(false, "Sem conexão • dados desatualizados");
-    availabilityMessage.textContent = "Sem leitura atual. Verifique a alimentação da ESP32 e a conexão Wi-Fi.";
-    availabilityMessage.classList.add("full");
+    setConnectionState(false, "Sem conexão — dados indisponíveis ou desatualizados");
+    availabilityMessage.textContent = error.message;
     availableList.innerHTML = "";
+    if (!currentStatus) {
+      [freeCount, occupiedCount, occupancyRate, oledFree].forEach(el => el.textContent = "--");
+      parkingMap.textContent = "Aguardando dados das quatro vagas.";
+    }
   } finally { loading = false; }
 }
-
-function setupRealtime() {
-  const socketScript = document.createElement("script");
-  socketScript.src = "/socket.io/socket.io.js";
-  socketScript.onload = () => {
-    if (!window.io) {
-      return;
-    }
-
-    const socket = window.io();
-    socket.on("parking:update", renderAll);
-  };
-  document.head.appendChild(socketScript);
-}
-
-loadHealth().then(loadInitialData);
+hardwareMode = ParkingData.mode !== "demo";
+databaseMode.textContent = hardwareMode ? (ParkingData.mode === "firebase" ? "Banco: Firebase" : "Servidor: ESP32") : "Dados: neste navegador";
+realtimeMode.textContent = hardwareMode ? "Atualização: a cada 3 segundos" : "Simulação local";
+apiEndpoint.textContent = ParkingData.mode === "esp32" ? (window.PARKING_CONFIG.esp32Url || "Mesmo endereço do site") : ParkingData.mode === "firebase" ? "Cloud Firestore" : "Integração futura";
+document.getElementById("endpoint-method").textContent = hardwareMode ? "GET" : "DEMO";
+document.getElementById("hardware-status").textContent = hardwareMode ? "Painel de leitura. Os registros devem ser enviados pela ESP32." : "ESP32 ainda não integrada. Use os controles abaixo para testar o painel.";
+loadInitialData();
 timerId = window.setInterval(updateRunningDurations, 1000);
-pollingId = window.setInterval(loadInitialData, 3000);
-healthPollingId = window.setInterval(loadHealth, 10000);
-
-window.addEventListener("beforeunload", () => {
-  window.clearInterval(timerId);
-  window.clearInterval(pollingId);
-  window.clearInterval(healthPollingId);
-});
+if (hardwareMode) pollingId = window.setInterval(loadInitialData, 3000);
+window.addEventListener("storage", () => { if (!hardwareMode) loadInitialData(); });
+window.addEventListener("beforeunload", () => { clearInterval(timerId); clearInterval(pollingId); });

@@ -1,0 +1,9 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Ocupação pública; autorização de escrita da placa será integrada depois.
+    match /vagas/{id} { allow read: if true; allow write: if false; }
+    match /eventos/{id} { allow read: if true; allow write: if false; }
+    match /metadata/status { allow read: if true; allow write: if false; }
+  }
+}

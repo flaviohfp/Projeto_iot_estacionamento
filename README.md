@@ -1,30 +1,52 @@
 ﻿# Estacionamento Inteligente
 
-Site para acompanhar as quatro vagas de uma maquete de estacionamento com ESP32. O painel mostra a ocupação das vagas e o histórico de entradas e saídas, com atualização automática.
+Painel estático em HTML, CSS e JavaScript, sem Node.js, dependências ou compilação.
+Abra `public/index.html` no navegador para usar a demonstração: quatro vagas, indicadores, aviso de lotação, histórico e tempo de permanência. A simulação fica salva neste navegador; se o armazenamento estiver bloqueado, dura apenas enquanto a página estiver aberta.
 
-## Funcionalidades
+## Vercel e Firebase Hosting
 
-- Mapa das quatro vagas, indicando livre ou ocupada.
-- Quantidade de vagas livres, ocupadas e taxa de ocupação.
-- Aviso quando o estacionamento está lotado.
-- Histórico com data, hora e tempo de permanência observado.
-- Status da conexão com a ESP32 e aviso de dados desatualizados.
+Na Vercel, importe o repositório com diretório raiz do projeto e preset Other. O `vercel.json` publica `public`, sem instalação nem build. Remova eventuais overrides antigos de build nas configurações do projeto.
 
-## Integração com a maquete
+Para Firebase Hosting, selecione seu projeto com a CLI Firebase e execute `firebase deploy --only hosting --project SEU_PROJETO`. A CLI é apenas uma ferramenta de publicação; o site não depende dela para funcionar.
 
-A ESP32 lê os quatro sensores IR instalados no piso, atualiza os LEDs RGB (verde para livre e vermelho para ocupada) e mostra as vagas disponíveis no OLED. O RTC DS3231 fornece o horário dos registros.
+## Fonte dos dados
 
-A placa pode hospedar o próprio site na rede local. Nesse modo, os sensores controlam as vagas, a simulação fica bloqueada e os últimos 40 eventos são preservados mesmo após desligar a ESP32.
+Edite `public/config.js`:
 
-Após configurar e gravar o firmware, conecte-se à rede Wi-Fi da maquete e abra [http://192.168.4.1](http://192.168.4.1). As instruções de instalação e ligação estão no [guia da ESP32](ESP32_SERVIDOR.md).
+- `mode: "demo"`: funciona imediatamente, com simulação local.
+- `mode: "firebase"`: preencha `firebaseProjectId`. Leitura do Cloud Firestore a cada três segundos. Usa as coleções do projeto antigo: `vagas`, `eventos` e `metadata/status`. Não grava simulações no banco real.
+- `mode: "esp32"`: preencha `esp32Url` com o endereço da placa, sem barra final. Deixe vazio quando a própria placa hospedar os arquivos de `public`.
 
-## Executar no computador
+Para leitura pública do Firestore, revise e publique `firestore.rules` usando `firebase deploy --only firestore:rules --project SEU_PROJETO`. As regras tornam públicos somente os registros de ocupação dessas coleções e bloqueiam escrita pelo cliente. Não armazene dados pessoais nelas. A autorização de escrita da ESP32 será definida na integração futura. Nunca coloque credenciais administrativas ou chaves privadas no site.
 
-Para conhecer o painel e testar a simulação, use Node.js 20 ou superior. Copie `.env.example` para `.env`, mantenha `USE_LOCAL_DATABASE=true` e execute:
+## Contrato para a futura ESP32
 
-```bash
-npm install
-npm start
+A placa será responsável pelos sensores, horários, histórico e persistência. O firmware foi removido desta versão e pode ser recuperado pelo histórico Git. Não há servidor Node ou função da Vercel.
+
+`GET /api/vagas` retorna:
+
+```json
+{
+  "ultimaAtualizacao": "2026-09-09T12:00:00Z",
+  "vagas": [
+    { "numero": 1, "ocupada": false, "entradaAtual": null },
+    { "numero": 2, "ocupada": true, "entradaAtual": "2026-09-09T11:55:00Z" },
+    { "numero": 3, "ocupada": false, "entradaAtual": null },
+    { "numero": 4, "ocupada": false, "entradaAtual": null }
+  ]
+}
 ```
 
-Abra [http://localhost:3000](http://localhost:3000). Nesse modo, os dados ficam em memória e são apagados ao reiniciar o servidor.
+`GET /api/historico` retorna uma lista, mais recente primeiro:
+
+```json
+[{ "vaga": 2, "tipo": "ENTRADA", "dataHora": "2026-09-09T11:55:00Z", "entrada": "2026-09-09T11:55:00Z", "saida": null }]
+```
+
+Na saída use `tipo: "SAIDA"` e preencha `saida`. O painel calcula a duração. Limite: 100 eventos. Atualize `ultimaAtualizacao` periodicamente mesmo sem mudança de ocupação; após 30 segundos o painel indica leitura desatualizada.
+
+No Firestore, cada documento `vagas/1` até `vagas/4` usa os campos do exemplo. `metadata/status` contém `ultimaAtualizacao`; documentos em `eventos` usam os campos do histórico. Horários podem ser strings ISO ou timestamps Firestore.
+
+Um site HTTPS na Vercel não consegue consultar livremente uma placa HTTP na rede local por restrições do navegador. Para acesso remoto, a ESP32 deverá enviar os dados ao Firebase. Para uso local, hospede o painel na placa; se as origens forem diferentes, configure CORS na API da ESP32.
+
+Documentação: [Firestore REST](https://firebase.google.com/docs/firestore/use-rest-api) e [configuração Vercel](https://vercel.com/docs/project-configuration/vercel-json).
