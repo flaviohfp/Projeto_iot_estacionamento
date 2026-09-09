@@ -1,7 +1,17 @@
 ﻿# Estacionamento Inteligente
 
 Painel estático em HTML, CSS e JavaScript, sem Node.js, dependências ou compilação.
-Abra `public/index.html` no navegador para usar a demonstração: quatro vagas, indicadores, aviso de lotação, histórico e tempo de permanência. A simulação fica salva neste navegador; se o armazenamento estiver bloqueado, dura apenas enquanto a página estiver aberta.
+O painel está configurado para o Firebase `iotestacionamento-e2b70`, com leitura pela API REST oficial do Cloud Firestore. Não precisa instalar o SDK nem ativar Analytics.
+
+## Ativar o banco do projeto
+
+1. No console Firebase deste projeto, abra **Criação > Firestore Database > Criar banco de dados**. Use o banco `(default)` e selecione a região desejada.
+2. Na aba **Regras**, publique o conteúdo de `firestore.rules`. Ele permite consultar a ocupação e bloqueia alterações pelo navegador.
+3. A ESP32 deverá preencher as quatro vagas, o histórico e `metadata/status`, conforme o contrato abaixo. Enquanto isso, o painel informa que aguarda dados; não apresenta vagas livres fictícias.
+
+A verificação da API durante esta integração retornou `SERVICE_DISABLED`: o Firestore precisa ser ativado no console. O projeto já está selecionado em `.firebaserc`. Com a CLI autenticada, as regras também podem ser publicadas com `firebase deploy --only firestore:rules`.
+
+Abra `public/index.html` para consultar o painel. Para testar sem sensores, altere `mode` para `demo` em `public/config.js`: quatro vagas, indicadores, aviso de lotação, histórico e tempo de permanência. A simulação fica salva neste navegador; se o armazenamento estiver bloqueado, dura apenas enquanto a página estiver aberta.
 
 ## Vercel e Firebase Hosting
 

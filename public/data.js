@@ -18,7 +18,17 @@ window.ParkingData = (() => {
   }
   async function json(url,options={}) {
     const response=await fetch(url,{...options,cache:'no-store',signal:AbortSignal.timeout(5000)});
-    if(!response.ok)throw Error(`Falha na leitura (${response.status}). Verifique configuração e permissões.`);
+    if(!response.ok) {
+      const details = await response.json().catch(() => ({}));
+      const message = details.error?.message || '';
+      if (/SERVICE_DISABLED|has not been used|disabled/i.test(JSON.stringify(details))) {
+        throw Error('Ative o Cloud Firestore no console Firebase deste projeto.');
+      }
+      if(response.status === 403) throw Error('Firebase: leitura não autorizada. Publique as regras do Firestore do projeto.');
+      if(response.status === 404 && /database .*does not exist/i.test(message)) throw Error('Crie o banco Cloud Firestore (default) no console Firebase.');
+      if(response.status === 404) throw Error('Firebase conectado, aguardando os registros da ESP32 no banco.');
+      throw Error(`Falha na leitura (${response.status}). Tente novamente em instantes.`);
+    }
     return response.json();
   }
   function fields(f={}) {
