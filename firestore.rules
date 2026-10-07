@@ -1,9 +1,44 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Ocupação pública; autorização de escrita da placa será integrada depois.
-    match /vagas/{id} { allow read: if true; allow write: if false; }
-    match /eventos/{id} { allow read: if true; allow write: if false; }
-    match /metadata/status { allow read: if true; allow write: if false; }
+    // Copie aqui o mesmo UID configurado em Controlador/Config.h.
+    function dispositivo() {
+      return request.auth != null
+        && request.auth.uid == 'PREENCHA_O_UID_DO_USUARIO_FIREBASE';
+    }
+    function horario(valor) { return valor == null || valor is string; }
+    match /vagas/{id} {
+      allow read: if true;
+      allow create, update: if dispositivo()
+        && id in ['vaga1', 'vaga2', 'vaga3', 'vaga4']
+        && request.resource.data.keys().hasOnly(['numero', 'ocupada', 'entradaAtual'])
+        && request.resource.data.numero is int
+        && request.resource.data.numero >= 1 && request.resource.data.numero <= 4
+        && request.resource.data.ocupada is bool
+        && horario(request.resource.data.entradaAtual);
+    }
+    match /eventos/{id} {
+      allow read: if true;
+      function eventoValido() {
+        let e = request.resource.data;
+        return e.keys().hasOnly(['vaga', 'tipo', 'dataHora', 'entrada', 'saida'])
+          && e.vaga is int && e.vaga >= 1 && e.vaga <= 4
+          && e.tipo in ['ENTRADA', 'SAIDA']
+          && horario(e.dataHora) && horario(e.entrada) && horario(e.saida);
+      }
+      allow create: if dispositivo() && eventoValido();
+      // Permite reenviar um evento apos queda de rede, sem modifica-lo.
+      allow update: if dispositivo() && eventoValido()
+        && request.resource.data == resource.data;
+    }
+    match /metadata/status {
+      allow read: if true;
+      allow create, update: if dispositivo()
+        && request.resource.data.keys().hasOnly(['ultimaAtualizacao', 'sensoresOk', 'eventosDescartados'])
+        && horario(request.resource.data.ultimaAtualizacao)
+        && request.resource.data.sensoresOk is bool
+        && request.resource.data.eventosDescartados is int
+        && request.resource.data.eventosDescartados >= 0;
+    }
   }
 }

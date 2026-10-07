@@ -179,7 +179,11 @@ async function loadInitialData() {
   loading = true;
   try {
     renderAll(await ParkingData.read());
-    if (hardwareMode && (!currentStatus.ultimaAtualizacao || Date.now() - new Date(currentStatus.ultimaAtualizacao).getTime() > 30000)) {
+    // O painel local usa a idade da leitura, inclusive antes do horario NTP.
+    const leituraLocal = ParkingData.mode === "esp32" && Number.isFinite(currentStatus.idadeLeituraMs);
+    const idade = leituraLocal ? currentStatus.idadeLeituraMs
+      : currentStatus.ultimaAtualizacao ? Date.now() - new Date(currentStatus.ultimaAtualizacao).getTime() : Infinity;
+    if (hardwareMode && idade > (leituraLocal ? 3000 : 30000)) {
       setConnectionState(false, "Sem leitura recente dos sensores");
       availabilityMessage.textContent = "Últimos dados recebidos — aguardando atualização dos sensores.";
       availableList.innerHTML = "";
@@ -190,10 +194,10 @@ async function loadInitialData() {
     availabilityMessage.textContent = error.message;
     availabilityMessage.classList.remove("full");
     availableList.innerHTML = "";
-    if (!currentStatus) {
-      [freeCount, occupiedCount, occupancyRate, lcdFree].forEach(el => el.textContent = "--");
-      parkingMap.textContent = "Aguardando dados das quatro vagas.";
-    }
+    currentStatus = null;
+    [freeCount, occupiedCount, occupancyRate, lcdFree].forEach(el => el.textContent = "--");
+    lcdList.textContent = "Vagas: --";
+    parkingMap.textContent = "Aguardando leitura válida das quatro vagas.";
   } finally { loading = false; }
 }
 hardwareMode = ParkingData.mode !== "demo";
@@ -201,12 +205,12 @@ const modeLink = document.getElementById("mode-link");
 modeLink.href = hardwareMode ? "?modo=demo" : window.location.pathname;
 modeLink.textContent = hardwareMode ? "Testar demonstração local" : "Voltar ao painel conectado";
 
-databaseMode.textContent = hardwareMode ? "Banco: Firebase" : "Dados: neste navegador";
+databaseMode.textContent = hardwareMode ? (ParkingData.mode === "esp32" ? "Servidor: ESP32 local" : "Banco: Firebase") : "Dados: neste navegador";
 realtimeMode.textContent = hardwareMode ? "Atualização: a cada 3 segundos" : "Simulação local";
-apiEndpoint.textContent = hardwareMode ? "Cloud Firestore REST" : "LocalStorage";
-document.getElementById("endpoint-method").textContent = hardwareMode ? "FIREBASE" : "DEMO";
+apiEndpoint.textContent = hardwareMode ? (ParkingData.mode === "esp32" ? "/api/vagas" : "Cloud Firestore REST") : "LocalStorage";
+document.getElementById("endpoint-method").textContent = hardwareMode ? (ParkingData.mode === "esp32" ? "GET" : "FIREBASE") : "DEMO";
 document.getElementById("hardware-status").textContent = hardwareMode
-  ? "ESP32 envia as leituras dos sensores para o Firebase. O painel consulta o histórico e o estado atual."
+  ? "A ESP32 dos sensores envia as leituras por UART à ESP32 dos LEDs/LCD. O painel acompanha as quatro vagas."
   : "Modo demonstração local. Os dados ficam somente neste navegador.";
 
 loadInitialData();

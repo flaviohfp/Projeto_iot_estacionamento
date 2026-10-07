@@ -1,3 +1,5 @@
+// Versao antiga com UMA placa e sensores digitais.
+// Para duas ESP32/HC-SR04 use ../Sensores/Sensores.ino e ../Controlador/Controlador.ino.
 #include <WiFi.h>
 #include <WebServer.h>
 #include <LittleFS.h>
@@ -7,8 +9,8 @@
 #include <HTTPClient.h>
 #include <time.h>
 
-const char* ssid = "AutomacaoF17";
-const char* password = "Automacao-F17";
+const char* ssid = "Iphone de Flavio";
+const char* password = "Flavio1000";
 
 const char* FIREBASE_PROJECT_ID = "iotestacionamento-e2b70";
 

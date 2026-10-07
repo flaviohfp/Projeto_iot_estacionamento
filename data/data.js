@@ -3,6 +3,7 @@ window.ParkingData = (() => {
   const mode = new URLSearchParams(window.location.search).get("modo") === "demo" ? "demo" : config.mode;
   const key = "estacionamento-demo-v2";
   let memory;
+  let firebaseApp;
 
   const validDate = value => typeof value === "string" && Number.isFinite(Date.parse(value));
 
@@ -30,6 +31,9 @@ window.ParkingData = (() => {
     vagas.sort((a, b) => a.numero - b.numero);
 
     const ocupadas = vagas.filter(v => v.ocupada).length;
+    if (data.status.ultimaAtualizacao && !validDate(data.status.ultimaAtualizacao)) {
+      throw Error("Horário inválido recebido da ESP32.");
+    }
     Object.assign(data.status, {
       total: 4,
       ocupadas,
@@ -61,7 +65,7 @@ window.ParkingData = (() => {
       const details = await response.json().catch(() => ({}));
       const message = details.error?.message || "";
       if (response.status === 403) throw Error("Firebase: leitura não autorizada. Verifique as regras do Firestore.");
-      if (response.status === 404) throw Error("Firestore não encontrado. Confira o projeto e se o banco foi criado.");
+      if (response.status === 404) throw Error("Aguardando os registros das ESP32 no Firestore. Confira se o banco (default) foi criado.");
       throw Error(message || `Falha na leitura (${response.status}).`);
     }
     return response.json();
@@ -89,11 +93,15 @@ window.ParkingData = (() => {
   }
 
   async function readFirebase() {
-    if (!config.firebaseProjectId) throw Error("Preencha firebaseProjectId em config.js.");
+    if (!config.firebase?.projectId) throw Error("Preencha a configuração Firebase em config.js.");
+    if (!firebaseApp) {
+      try { firebaseApp = (await import('./firebase.js')).app; }
+      catch { throw Error("Não foi possível inicializar o SDK Firebase. Verifique sua conexão."); }
+    }
 
-    const base = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(config.firebaseProjectId)}/databases/(default)/documents`;
+    const base = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(firebaseApp.options.projectId)}/databases/(default)/documents`;
     const [vagas, meta, eventos] = await Promise.all([
-      json(`${base}/vagas?pageSize=4`),
+      Promise.all([1, 2, 3, 4].map(i => json(`${base}/vagas/vaga${i}`))),
       json(`${base}/metadata/status`),
       json(`${base}:runQuery`, {
         method: "POST",
@@ -108,15 +116,17 @@ window.ParkingData = (() => {
       })
     ]);
 
-    const vagaDocs = (vagas.documents || []).map(d => fields(d.fields));
+    const vagaDocs = vagas.map(d => fields(d.fields));
     if (vagaDocs.length < 4) {
       throw Error("Firebase conectado, mas as quatro vagas ainda não foram registradas pela ESP32.");
     }
 
+    const metadata = fields(meta.fields);
+    if (metadata.sensoresOk === false) throw Error("ESP32 conectada, mas há falha nos sensores ou na comunicação UART.");
     return normalize({
       status: {
         vagas: vagaDocs,
-        ultimaAtualizacao: fields(meta.fields).ultimaAtualizacao || null
+        ultimaAtualizacao: metadata.ultimaAtualizacao || null
       },
       historico: eventos.filter(e => e.document).map(e => fields(e.document.fields))
     });
@@ -125,6 +135,11 @@ window.ParkingData = (() => {
   async function read() {
     if (mode === "demo") return readDemo();
     if (mode === "firebase") return readFirebase();
+    if (mode === "esp32") {
+      const base = (config.esp32Url || "").replace(/\/$/, "");
+      const [status, historico] = await Promise.all([json(`${base}/api/vagas`), json(`${base}/api/historico`)]);
+      return normalize({ status, historico });
+    }
     throw Error("Modo inválido em config.js.");
   }
 

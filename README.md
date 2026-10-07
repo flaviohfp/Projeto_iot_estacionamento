@@ -1,367 +1,41 @@
-﻿# Estacionamento Inteligente
+﻿# Estacionamento inteligente — duas ESP32
 
-<<<<<<< HEAD
-Painel estático em HTML, CSS e JavaScript, sem compilação ou instalação de dependências.
-O painel inicializa o app Web `1:1025866294746:web:8a84051c60c9899a1e4ce3` pelo SDK modular via CDN oficial. A leitura continua pela API REST do Cloud Firestore do projeto inicializado, `iotestacionamento-e2b70`. Analytics não é ativado; o measurementId fica disponível para uso futuro.
-=======
-Projeto de um sistema de estacionamento inteligente utilizando **ESP32, sensores IR, LEDs, LCD 16x2, Wi-Fi e Firebase Cloud Firestore**.
->>>>>>> a01b8deb664581293d50c51404cdf14a33a0546d
+Quatro HC-SR04 enviam leituras pela ESP32 **Sensores** à ESP32 **Controlador**, por UART. O controlador aciona LEDs RGB e LCD I2C 16×2, hospeda o painel local e envia vagas/histórico ao Firebase Cloud Firestore. O site remoto lê esse banco.
 
-A ESP32 identifica quais vagas estão ocupadas, mostra as informações no LCD, controla os LEDs e envia os dados para o Cloud Firestore. O site é hospedado diretamente pela ESP32 utilizando o **LittleFS**.
+**Guia de instalação, ligações e configuração:** [ESP32_CODE/README.md](ESP32_CODE/README.md).
 
-## Estrutura do projeto
+## Programas para Arduino IDE
 
-```text
-Estacionamento/
-│
-├── Estacionamento.ino
-├── firestore.rules
-│
-└── data/
-    ├── index.html
-    ├── style.css
-    ├── script.js
-    ├── data.js
-    └── config.js
+- `ESP32_CODE/Sensores/Sensores.ino`: placa dos quatro HC-SR04.
+- `ESP32_CODE/Controlador/Controlador.ino`: placa dos LEDs e LCD.
+- `ESP32_CODE/Controlador/Config.h`: Wi-Fi, pinos e autenticação Firebase. Preencha senha e UID do usuário do dispositivo antes de enviar.
+
+O arquivo antigo `ESP32_CODE/Estacionamento/Estacionamento.ino` foi preservado como referência da versão com uma placa e sensores digitais. Para a montagem atual, use os dois programas acima.
+
+## Site e servidor
+
+O site fica em `data/`. O controlador contém uma cópia incorporada em `SiteAssets.h`; o envio normal pela Arduino IDE já inclui o painel. Após alterar o site, execute `node tools/embed-site.cjs` e reenvie o controlador.
+
+Painel local: `http://IP_DA_ESP32/`, mostrado no Monitor Serial. API: `/api/vagas`, `/api/historico`, `/api/health`. O painel local consulta a ESP32; o remoto consulta o Firebase. LEDs e LCD funcionam sem internet.
+
+O Hosting publica `data/` no site `iotestacionamento-e2b70-8a237`. Depois de configurar Authentication e o UID em `firestore.rules`, publique com a CLI autenticada:
+
+```sh
+firebase deploy --only hosting,firestore:rules --project iotestacionamento-e2b70
 ```
 
-<<<<<<< HEAD
-Sirva a pasta `public` por HTTP/HTTPS para consultar o painel (os módulos do SDK não funcionam abrindo o arquivo diretamente por file://). Para testar sem sensores, clique em **Testar demonstração local**: quatro vagas, indicadores, aviso de lotação, histórico e tempo de permanência. A demonstração não acessa nem modifica o Firebase. A simulação fica salva neste navegador; se o armazenamento estiver bloqueado, dura apenas enquanto a página estiver aberta.
-=======
-### Arquivos
->>>>>>> a01b8deb664581293d50c51404cdf14a33a0546d
+URL após publicação: https://iotestacionamento-e2b70-8a237.web.app. A Vercel também serve `data/`.
 
-* `Estacionamento.ino` → código principal da ESP32.
-* `firestore.rules` → regras de acesso do Cloud Firestore.
-* `data/index.html` → página principal do sistema.
-* `data/style.css` → estilos do site.
-* `data/script.js` → funcionamento e atualização da interface.
-* `data/data.js` → leitura dos dados do Firestore.
-* `data/config.js` → configuração do projeto Firebase.
+## Firestore
 
-## Hardware utilizado
-
-<<<<<<< HEAD
-O Firebase Hosting está configurado para o site `iotestacionamento-e2b70-8a237`. Com a CLI instalada (`npm install -g firebase-tools`), execute `firebase login` e depois `firebase deploy --only hosting --project iotestacionamento-e2b70`. O endereço após a publicação será https://iotestacionamento-e2b70-8a237.web.app. A CLI é apenas uma ferramenta de publicação; o site não depende dela para funcionar.
-=======
-* ESP32
-* 4 sensores IR
-* 4 LEDs
-* LCD I2C 16x2
-* Cabos para conexão
-* Wi-Fi
->>>>>>> a01b8deb664581293d50c51404cdf14a33a0546d
-
-## Funcionamento
-
-Os sensores IR verificam o estado das quatro vagas.
-
-<<<<<<< HEAD
-- `mode: "demo"`: funciona imediatamente, com simulação local.
-- `mode: "firebase"`: preencha o objeto `firebase` com a configuração pública do app Web. Leitura do Cloud Firestore a cada três segundos. Usa as coleções do projeto antigo: `vagas`, `eventos` e `metadata/status`. Não grava simulações no banco real.
-- `mode: "esp32"`: preencha `esp32Url` com o endereço da placa, sem barra final. Deixe vazio quando a própria placa hospedar os arquivos de `public`.
-=======
-Quando uma vaga é ocupada:
->>>>>>> a01b8deb664581293d50c51404cdf14a33a0546d
-
-1. O sensor identifica a presença do veículo.
-2. O LED correspondente é acionado.
-3. O LCD é atualizado.
-4. A ESP32 registra o horário de entrada.
-5. A informação da vaga é enviada para o Firestore.
-6. Um evento de `ENTRADA` é registrado no histórico.
-
-Quando o veículo sai:
-
-1. O sensor identifica que a vaga está livre.
-2. O LED correspondente é desligado.
-3. O LCD é atualizado.
-4. A ESP32 registra o horário de saída.
-5. A informação da vaga é atualizada no Firestore.
-6. Um evento de `SAIDA` é registrado no histórico.
-
-A ESP32 utiliza a API REST do Cloud Firestore para realizar a comunicação com o banco. A API REST é adequada para dispositivos com recursos limitados, incluindo dispositivos IoT.
-
-## Configuração do Wi-Fi
-
-Abra o arquivo:
-
-```text
-Estacionamento.ino
-```
-
-Localize:
-
-```cpp
-const char* ssid = "SEU_WIFI";
-const char* password = "SUA_SENHA";
-```
-
-Substitua pelos dados da rede Wi-Fi que será utilizada pela ESP32.
-
-Exemplo:
-
-```cpp
-const char* ssid = "NomeDaRede";
-const char* password = "SenhaDaRede";
-```
-
-## Configuração do Firebase
-
-O projeto utiliza:
-
-```text
-iotestacionamento-e2b70
-```
-
-O Firestore deve estar ativado no projeto Firebase.
-
-As regras utilizadas estão no arquivo:
-
-```text
-firestore.rules
-```
-
-Depois de configurar o Firestore, publique essas regras no console do Firebase.
-
-## Estrutura dos dados no Firestore
-
-O sistema utiliza três partes principais:
-
-```text
-vagas
-metadata
-eventos
-```
-
-### Coleção `vagas`
-
-São utilizados quatro documentos:
-
-```text
-vagas/vaga1
-vagas/vaga2
-vagas/vaga3
-vagas/vaga4
-```
-
-Cada documento possui informações semelhantes a:
+Documentos de ocupação: `vagas/vaga1` até `vagas/vaga4`:
 
 ```json
-{
-  "numero": 1,
-  "ocupada": false,
-  "entradaAtual": null
-}
+{"numero": 1, "ocupada": true, "entradaAtual": "2026-10-07T12:00:00Z"}
 ```
 
-Quando a vaga está ocupada:
+`metadata/status`: `ultimaAtualizacao`, `sensoresOk`, `eventosDescartados`. `eventos/{id}`: `vaga`, `tipo` (`ENTRADA`/`SAIDA`), `dataHora`, `entrada`, `saida`. Horários conhecidos usam UTC com `Z`; desconhecidos são `null`.
 
-```json
-{
-  "numero": 1,
-  "ocupada": true,
-  "entradaAtual": "2026-09-09T12:00:00"
-}
-```
+A escrita exige o usuário Firebase da placa. O controlador envia lotes a cada dez segundos; o site consulta a cada três e sinaliza dados com mais de trinta segundos. Falha de sensor não aparece como vaga livre.
 
-### Documento `metadata/status`
-
-Armazena informações gerais do estacionamento, como:
-
-```json
-{
-  "ultimaAtualizacao": "2026-09-09T12:00:00",
-  "livres": 3,
-  "ocupadas": 1
-}
-```
-
-### Coleção `eventos`
-
-Armazena o histórico de entradas e saídas.
-
-Exemplo de entrada:
-
-```json
-{
-  "vaga": 2,
-  "tipo": "ENTRADA",
-  "dataHora": "2026-09-09T12:00:00",
-  "entrada": "2026-09-09T12:00:00",
-  "saida": null
-}
-```
-
-Exemplo de saída:
-
-```json
-{
-  "vaga": 2,
-  "tipo": "SAIDA",
-  "dataHora": "2026-09-09T13:00:00",
-  "entrada": "2026-09-09T12:00:00",
-  "saida": "2026-09-09T13:00:00"
-}
-```
-
-## Site
-
-Os arquivos do site ficam dentro da pasta:
-
-```text
-data/
-```
-
-A ESP32 utiliza o **LittleFS** para armazenar esses arquivos.
-
-O arquivo principal é:
-
-```text
-data/index.html
-```
-
-O site apresenta:
-
-* Estado das quatro vagas.
-* Quantidade de vagas livres.
-* Quantidade de vagas ocupadas.
-* Taxa de ocupação.
-* Estado do LCD.
-* Informações da integração com o Firebase.
-* Histórico de entradas e saídas.
-* Tempo de permanência dos veículos.
-
-## API local da ESP32
-
-A ESP32 também disponibiliza endpoints locais.
-
-### Status
-
-```text
-GET /api/status
-```
-
-Retorna informações sobre as vagas.
-
-Exemplo:
-
-```json
-{
-  "ultimaAtualizacao": "2026-09-09T12:00:00",
-  "livres": 3,
-  "ocupadas": 1,
-  "taxaOcupacao": 25,
-  "vagas": [
-    {
-      "numero": 1,
-      "ocupada": false,
-      "entradaAtual": null
-    },
-    {
-      "numero": 2,
-      "ocupada": true,
-      "entradaAtual": "2026-09-09T11:55:00"
-    },
-    {
-      "numero": 3,
-      "ocupada": false,
-      "entradaAtual": null
-    },
-    {
-      "numero": 4,
-      "ocupada": false,
-      "entradaAtual": null
-    }
-  ]
-}
-```
-
-### Saúde da ESP32
-
-```text
-GET /api/health
-```
-
-Esse endpoint informa se a ESP32 está conectada ao Wi-Fi.
-
-## Como instalar o site na ESP32
-
-Os arquivos:
-
-```text
-index.html
-style.css
-script.js
-data.js
-config.js
-```
-
-devem permanecer dentro da pasta:
-
-```text
-data/
-```
-
-Depois, os arquivos da pasta `data` devem ser enviados para o **LittleFS** da ESP32.
-
-## Inicialização
-
-Ao ligar a ESP32:
-
-1. Os sensores são configurados.
-2. Os LEDs são configurados.
-3. O LCD é inicializado.
-4. O LittleFS é montado.
-5. A ESP32 tenta conectar ao Wi-Fi.
-6. O horário é obtido por NTP.
-7. O servidor web é iniciado.
-8. O estado inicial das vagas é identificado.
-9. Os dados são enviados ao Firestore.
-10. O sistema começa a monitorar as vagas.
-
-## Observações
-
-Este projeto foi desenvolvido para fins educacionais.
-
-O arquivo `firestore.rules` deve ser configurado de acordo com a forma de acesso escolhida para o projeto. A API REST do Firestore utiliza autenticação/autorização e pode ser controlada pelas regras do Firestore quando a requisição é feita de forma não autenticada ou com um token Firebase.
-
-Não devem ser armazenadas informações pessoais desnecessárias no banco de dados.
-
-## Resumo da arquitetura
-
-```text
-                 ┌──────────────┐
-                 │ Sensores IR  │
-                 └──────┬───────┘
-                        │
-                        ▼
-                 ┌──────────────┐
-                 │    ESP32     │
-                 └──────┬───────┘
-                        │
-          ┌─────────────┼─────────────┐
-          ▼             ▼             ▼
-      ┌────────┐   ┌──────────┐  ┌───────────┐
-      │  LEDs  │   │ LCD 16x2 │  │ LittleFS  │
-      └────────┘   └──────────┘  └─────┬─────┘
-                                       │
-                                       ▼
-                                  ┌──────────┐
-                                  │  Site    │
-                                  └──────────┘
-
-                        ESP32
-                          │
-                          ▼
-                 ┌─────────────────┐
-                 │ Firebase        │
-                 │ Cloud Firestore │
-                 └────────┬────────┘
-                          │
-              ┌───────────┼───────────┐
-              ▼           ▼           ▼
-           vagas      metadata     eventos
-
-Esse README agora corresponde à estrutura que você está usando, **sem `public/`, Vercel, `.firebaserc`, `firebase.json` ou Node.js**.
-```
+Fontes: [Firestore REST](https://firebase.google.com/docs/firestore/use-rest-api), [Firebase Auth REST](https://firebase.google.com/docs/reference/rest/auth), [hd44780](https://github.com/duinoWitchery/hd44780).
