@@ -1,7 +1,7 @@
 ﻿# Estacionamento Inteligente
 
-Painel estático em HTML, CSS e JavaScript, sem Node.js, dependências ou compilação.
-O painel está configurado para o Firebase `iotestacionamento-e2b70`, com leitura pela API REST oficial do Cloud Firestore. Não precisa instalar o SDK nem ativar Analytics.
+Painel estático em HTML, CSS e JavaScript, sem compilação ou instalação de dependências.
+O painel inicializa o app Web `1:1025866294746:web:8a84051c60c9899a1e4ce3` pelo SDK modular via CDN oficial. A leitura continua pela API REST do Cloud Firestore do projeto inicializado, `iotestacionamento-e2b70`. Analytics não é ativado; o measurementId fica disponível para uso futuro.
 
 ## Ativar o banco do projeto
 
@@ -11,20 +11,20 @@ O painel está configurado para o Firebase `iotestacionamento-e2b70`, com leitur
 
 A verificação real confirmou leitura autorizada de vagas e histórico. O banco ainda não possui registros das vagas nem `metadata/status`. O projeto já está selecionado em `.firebaserc`. Com a CLI autenticada, as regras também podem ser publicadas com `firebase deploy --only firestore:rules`.
 
-Abra `public/index.html` para consultar o painel. Para testar sem sensores, clique em **Testar demonstração local**: quatro vagas, indicadores, aviso de lotação, histórico e tempo de permanência. A demonstração não acessa nem modifica o Firebase. A simulação fica salva neste navegador; se o armazenamento estiver bloqueado, dura apenas enquanto a página estiver aberta.
+Sirva a pasta `public` por HTTP/HTTPS para consultar o painel (os módulos do SDK não funcionam abrindo o arquivo diretamente por file://). Para testar sem sensores, clique em **Testar demonstração local**: quatro vagas, indicadores, aviso de lotação, histórico e tempo de permanência. A demonstração não acessa nem modifica o Firebase. A simulação fica salva neste navegador; se o armazenamento estiver bloqueado, dura apenas enquanto a página estiver aberta.
 
 ## Vercel e Firebase Hosting
 
 Na Vercel, importe o repositório com diretório raiz do projeto e preset Other. O `vercel.json` publica `public`, sem instalação nem build. Remova eventuais overrides antigos de build nas configurações do projeto.
 
-Para Firebase Hosting, selecione seu projeto com a CLI Firebase e execute `firebase deploy --only hosting --project SEU_PROJETO`. A CLI é apenas uma ferramenta de publicação; o site não depende dela para funcionar.
+O Firebase Hosting está configurado para o site `iotestacionamento-e2b70-8a237`. Com a CLI instalada (`npm install -g firebase-tools`), execute `firebase login` e depois `firebase deploy --only hosting --project iotestacionamento-e2b70`. O endereço após a publicação será https://iotestacionamento-e2b70-8a237.web.app. A CLI é apenas uma ferramenta de publicação; o site não depende dela para funcionar.
 
 ## Fonte dos dados
 
 Edite `public/config.js`:
 
 - `mode: "demo"`: funciona imediatamente, com simulação local.
-- `mode: "firebase"`: preencha `firebaseProjectId`. Leitura do Cloud Firestore a cada três segundos. Usa as coleções do projeto antigo: `vagas`, `eventos` e `metadata/status`. Não grava simulações no banco real.
+- `mode: "firebase"`: preencha o objeto `firebase` com a configuração pública do app Web. Leitura do Cloud Firestore a cada três segundos. Usa as coleções do projeto antigo: `vagas`, `eventos` e `metadata/status`. Não grava simulações no banco real.
 - `mode: "esp32"`: preencha `esp32Url` com o endereço da placa, sem barra final. Deixe vazio quando a própria placa hospedar os arquivos de `public`.
 
 Para leitura pública do Firestore, revise e publique `firestore.rules` usando `firebase deploy --only firestore:rules --project SEU_PROJETO`. As regras tornam públicos somente os registros de ocupação dessas coleções e bloqueiam escrita pelo cliente. Não armazene dados pessoais nelas. A autorização de escrita da ESP32 será definida na integração futura. Nunca coloque credenciais administrativas ou chaves privadas no site.

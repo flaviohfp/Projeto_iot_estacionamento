@@ -4,6 +4,7 @@ window.ParkingData = (() => {
   const key = 'estacionamento-demo-v1';
   let memory;
   let updates = Promise.resolve();
+  let firebaseApp;
   const validDate = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
   function initial() {
     return {status:{vagas:Array.from({length:4},(_,i)=>({numero:i+1,ocupada:false,entradaAtual:null})),ultimaAtualizacao:null},historico:[]};
@@ -55,8 +56,12 @@ window.ParkingData = (() => {
       return normalize({status,historico});
     }
     if(mode!=='firebase')throw Error('Modo inválido em config.js.');
-    if(!config.firebaseProjectId)throw Error('Preencha firebaseProjectId em config.js.');
-    const base=`https://firestore.googleapis.com/v1/projects/${encodeURIComponent(config.firebaseProjectId)}/databases/(default)/documents`;
+    if(!config.firebase?.projectId)throw Error('Preencha a configuração Firebase em config.js.');
+    if (!firebaseApp) {
+      try { firebaseApp = (await import('./firebase.js')).app; }
+      catch { throw Error('Não foi possível inicializar o Firebase. Verifique sua conexão e a configuração do app Web.'); }
+    }
+    const base=`https://firestore.googleapis.com/v1/projects/${encodeURIComponent(firebaseApp.options.projectId)}/databases/(default)/documents`;
     const [vagas,meta,eventos]=await Promise.all([
       json(`${base}/vagas?pageSize=4`),json(`${base}/metadata/status`),
       json(`${base}:runQuery`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({structuredQuery:{from:[{collectionId:'eventos'}],orderBy:[{field:{fieldPath:'dataHora'},direction:'DESCENDING'}],limit:100}})})
