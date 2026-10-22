@@ -6,6 +6,10 @@ Quatro HC-SR04 enviam leituras pela ESP32 **Sensores** à ESP32 **Controlador**,
 
 ## Programas para Arduino IDE
 
+**Arquivo único recomendado:** `ESP32_CODE/ProjetoCompleto/ProjetoCompleto.ino`. Ele contém os programas das duas placas, HTML/CSS/JavaScript do site, certificados HTTPS, cliente Firebase, configuração Web e uma cópia das regras do Firestore. Grave o mesmo arquivo duas vezes, escolhendo `PAPEL_DA_ESP` no início: `PLACA_SENSORES` para HC-SR04; `PLACA_CONTROLADOR` para LEDs/LCD. Preencha senha e UID Firebase no próprio arquivo. A ativação de Authentication e a publicação das regras/Hosting são feitas no Firebase, conforme o guia.
+
+Os arquivos separados também continuam disponíveis:
+
 - `ESP32_CODE/Sensores/Sensores.ino`: placa dos quatro HC-SR04.
 - `ESP32_CODE/Controlador/Controlador.ino`: placa dos LEDs e LCD.
 - `ESP32_CODE/Controlador/Config.h`: Wi-Fi, pinos e autenticação Firebase. Preencha senha e UID do usuário do dispositivo antes de enviar.
