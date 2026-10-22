@@ -1,33 +1,41 @@
-﻿# Estacionamento inteligente — painel para ESP32
+# Estacionamento inteligente — painel web (2 vagas)
 
-Site estático (somente HTML, CSS e JavaScript) para ser servido pela própria ESP32. Sem banco de dados, sem bibliotecas externas e sem histórico: o painel mostra o estado atual das 4 vagas.
-
-## Arquivos
+Parte web do projeto: somente HTML, CSS e JavaScript, para ser servida pela ESP32.
 
 ```
 data/
-  index.html   página
-  style.css    todo o estilo
-  script.js    todo o JavaScript
-server.js      servidor Node de teste (opcional, não vai para a ESP32)
+  index.html
+  style.css
+  script.js
+server.js   (só para testar no computador, não vai para a ESP32)
 ```
 
-A pasta `data/` é a que vai para a ESP32 (por exemplo, via LittleFS).
+## O que a ESP32 precisa fazer
 
-## API que a ESP32 precisa oferecer
-
-`GET /api/vagas` deve responder JSON:
+1. Servir os 3 arquivos: `/` → `index.html`, `/style.css`, `/script.js`.
+2. Responder `GET /api/vagas` com JSON no formato:
 
 ```json
 {"vagas": [
-  {"numero": 1, "ocupada": true,  "segundos": 42},
-  {"numero": 2, "ocupada": false, "segundos": 0},
-  {"numero": 3, "ocupada": false, "segundos": 0},
-  {"numero": 4, "ocupada": true,  "segundos": 310}
+  {"numero": 1, "ocupada": false, "erro": false, "distancia": 25.3, "segundos": 0},
+  {"numero": 2, "ocupada": true,  "erro": false, "distancia": 4.1,  "segundos": 42}
 ]}
 ```
 
-`segundos` é há quanto tempo a vaga está ocupada (calcule com `millis()` na ESP32; não precisa de internet/NTP). O site consulta a cada 2 segundos e conta o tempo entre as consultas.
+| Campo       | Significado                                                        |
+|-------------|--------------------------------------------------------------------|
+| `numero`    | número da vaga (1 ou 2)                                            |
+| `ocupada`   | `true` se o HC-SR04 detectou carro                                 |
+| `erro`      | `true` se o sensor falhou (o site mostra "SEM SENSOR")             |
+| `distancia` | leitura do HC-SR04 em cm, ou `null` sem eco                        |
+| `segundos`  | há quanto tempo a vaga está ocupada (`millis()`), `0` se livre     |
+
+O site consulta a API a cada 1 segundo. O card "Display LCD" mostra o mesmo texto que o LCD 16x2 deve exibir:
+
+```
+Livres: 1 de 2        (ou "ESTAC. LOTADO" quando não há vaga livre)
+1:LIVRE 2:OCUP.       (cada vaga: "N:LIVRE", "N:OCUP." ou "N:ERRO")
+```
 
 ## Testar no computador
 
@@ -35,4 +43,4 @@ A pasta `data/` é a que vai para a ESP32 (por exemplo, via LittleFS).
 node server.js
 ```
 
-Abra http://localhost:3000. O servidor de teste serve `data/` e simula `/api/vagas`, trocando uma vaga aleatória a cada 5 segundos.
+Abra http://localhost:3000. O servidor simula a ESP32 trocando uma vaga a cada 5 segundos.

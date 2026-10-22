@@ -9,7 +9,7 @@
 <body>
   <header class="topbar">
     <div>
-      <p class="eyebrow">Projeto IoT - 4 vagas</p>
+      <p class="eyebrow">Projeto IoT - 2 vagas</p>
       <h1>Estacionamento Inteligente</h1>
     </div>
     <div class="system-status" aria-live="polite">
@@ -28,10 +28,10 @@
         </div>
         <div class="health-row">
           <span class="health-chip">Servidor: ESP32</span>
-          <span class="health-chip">Atualização: a cada 2 s</span>
+          <span class="health-chip">Atualização: a cada 1 s</span>
         </div>
       </div>
-      <div class="parking-lot" aria-label="Mapa das quatro vagas do estacionamento">
+      <div class="parking-lot" aria-label="Mapa das vagas do estacionamento">
         <div id="parking-map" class="parking-grid"></div>
       </div>
     </section>
@@ -51,8 +51,8 @@
       </article>
       <article class="metric-card lcd-card">
         <span>Display LCD</span>
-        <strong id="lcd-free">--</strong>
-        <small id="lcd-list">Vagas: --</small>
+        <pre id="lcd-screen" class="lcd-screen">----------------
+----------------</pre>
       </article>
     </section>
 
@@ -73,11 +73,11 @@
           <span>GET</span>
           <code>/api/vagas</code>
         </div>
-        <p>A ESP32 lê os sensores e serve este painel. A página consulta as vagas a cada 2 segundos.</p>
+        <p>A ESP32 lê os sensores ultrassônicos, acende os LEDs RGB, escreve no LCD e serve este painel.</p>
         <div class="hardware-list" aria-label="Componentes da maquete">
-          <span>ESP32</span>
-          <span>4 HC-SR04</span>
-          <span>4 LEDs RGB</span>
+          <span>1 ESP32</span>
+          <span>2 HC-SR04</span>
+          <span>2 LEDs RGB</span>
           <span>LCD I2C 16x2</span>
         </div>
       </div>
