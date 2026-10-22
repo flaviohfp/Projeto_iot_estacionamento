@@ -1,0 +1,9 @@
+{
+  "name": "estacionamento-inteligente",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Painel web do estacionamento inteligente (HTML, CSS e JS) para a ESP32",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

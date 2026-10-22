@@ -7,7 +7,8 @@ data/
   index.html
   style.css
   script.js
-server.js   (só para testar no computador, não vai para a ESP32)
+server.js      (só para testar no computador, não vai para a ESP32)
+package.json   (só para o "npm start", não vai para a ESP32)
 ```
 
 ## O que a ESP32 precisa fazer
@@ -40,7 +41,7 @@ Livres: 1 de 2        (ou "ESTAC. LOTADO" quando não há vaga livre)
 ## Testar no computador
 
 ```bash
-node server.js
+npm start
 ```
 
 Abra http://localhost:3000. O servidor simula a ESP32 trocando uma vaga a cada 5 segundos.

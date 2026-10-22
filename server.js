@@ -46,4 +46,9 @@ http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] });
     res.end(content);
   });
+}).on("error", err => {
+  if (err.code !== "EADDRINUSE") throw err;
+  console.error(`A porta ${PORT} já está em uso (outro servidor aberto?).`);
+  console.error("Feche o outro terminal com Ctrl+C ou use outra porta:  $env:PORT=3001; npm start");
+  process.exit(1);
 }).listen(PORT, () => console.log(`Painel de teste: http://localhost:${PORT}`));
