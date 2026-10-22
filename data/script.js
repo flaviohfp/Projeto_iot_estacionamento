@@ -1,92 +1,72 @@
-const parkingMap = document.getElementById("parking-map");
-const freeCount = document.getElementById("free-count");
-const occupiedCount = document.getElementById("occupied-count");
-const occupancyRate = document.getElementById("occupancy-rate");
-const availableList = document.getElementById("available-list");
-const availabilityMessage = document.getElementById("availability-message");
-const historyBody = document.getElementById("history-body");
-const lastUpdate = document.getElementById("last-update");
-const connectionDot = document.getElementById("connection-dot");
-const connectionText = document.getElementById("connection-text");
-const databaseMode = document.getElementById("database-mode");
-const realtimeMode = document.getElementById("realtime-mode");
-const apiEndpoint = document.getElementById("api-endpoint");
-const lcdFree = document.getElementById("lcd-free");
-const lcdList = document.getElementById("lcd-list");
+// Painel do estacionamento servido pela ESP32.
+// A ESP32 deve responder GET /api/vagas com:
+// {"vagas":[{"numero":1,"ocupada":true,"segundos":42}, ...]}
+// "segundos" = tempo que a vaga está ocupada (calculado com millis() na ESP32).
+const API_URL = "/api/vagas";
+const INTERVALO_MS = 2000;
+const TOTAL_VAGAS = 4;
 
-let currentStatus = null;
-let timerId = null;
-let pollingId = null;
-let hardwareMode = false;
-let loading = false;
+const $ = id => document.getElementById(id);
+const parkingMap = $("parking-map");
+const freeCount = $("free-count");
+const occupiedCount = $("occupied-count");
+const occupancyRate = $("occupancy-rate");
+const availableList = $("available-list");
+const availabilityMessage = $("availability-message");
+const lastUpdate = $("last-update");
+const connectionDot = $("connection-dot");
+const connectionText = $("connection-text");
+const lcdFree = $("lcd-free");
+const lcdList = $("lcd-list");
 
+let vagas = null;
+let recebidoEm = 0;
+let carregando = false;
 
-function setConnectionState(isOnline, text) {
-  connectionDot.classList.toggle("offline", !isOnline);
+function setConnectionState(online, text) {
+  connectionDot.classList.toggle("offline", !online);
   connectionText.textContent = text;
 }
 
-function formatDateTime(isoString) {
-  if (!isoString) {
-    return {
-      date: "--/--/----",
-      time: "--:--:--"
-    };
-  }
-
-  const date = new Date(isoString);
-  return {
-    date: date.toLocaleDateString("pt-BR"),
-    time: date.toLocaleTimeString("pt-BR")
-  };
-}
-
-function secondsBetween(startIso, endDate = new Date()) {
-  if (!startIso) {
-    return 0;
-  }
-
-  return Math.max(0, Math.floor((endDate - new Date(startIso)) / 1000));
-}
-
 function formatDuration(totalSeconds) {
-  const seconds = Math.max(0, Number(totalSeconds || 0));
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remainingSeconds = seconds % 60;
-
-  return [hours, minutes, remainingSeconds]
-    .map((value) => String(value).padStart(2, "0"))
+  const s = Math.max(0, Math.floor(totalSeconds));
+  return [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60]
+    .map(v => String(v).padStart(2, "0"))
     .join(":");
 }
 
-function formatVagasList(vagas) {
-  if (!vagas.length) {
-    return "--";
-  }
-
-  return vagas.join(", ");
+function segundosOcupada(vaga) {
+  return vaga.segundos + (Date.now() - recebidoEm) / 1000;
 }
 
-function renderParkingMap(status) {
-  parkingMap.innerHTML = status.vagas.map((vaga) => {
-    const occupiedClass = vaga.ocupada ? "occupied" : "";
-    const entrada = formatDateTime(vaga.entradaAtual);
-    const duration = vaga.ocupada && vaga.entradaAtual ? formatDuration(secondsBetween(vaga.entradaAtual)) : "--:--:--";
+function normalize(data) {
+  const lista = data && data.vagas;
+  if (!Array.isArray(lista) || lista.length !== TOTAL_VAGAS) {
+    throw new Error("Resposta inválida da ESP32.");
+  }
+  return lista
+    .map(v => ({
+      numero: Number(v.numero),
+      ocupada: v.ocupada === true,
+      segundos: Number.isFinite(Number(v.segundos)) ? Number(v.segundos) : null
+    }))
+    .sort((a, b) => a.numero - b.numero);
+}
+
+function renderParkingMap() {
+  parkingMap.innerHTML = vagas.map(vaga => {
     const details = vaga.ocupada
-      ? `<div>Entrada: <strong>${entrada.time}</strong></div><div>Tempo estacionado: <strong data-duration="${vaga.numero}">${duration}</strong></div>`
-      : "<div>Disponivel para entrada</div>";
+      ? `<div>Tempo estacionado: <strong data-duration="${vaga.numero}">--:--:--</strong></div>`
+      : "<div>Disponível para entrada</div>";
 
     return `
-      <article class="parking-card ${occupiedClass}" data-vaga="${vaga.numero}">
+      <article class="parking-card ${vaga.ocupada ? "occupied" : ""}">
         <div class="parking-head">
           <div>
             <span class="label">Vaga</span>
             <div class="number">${vaga.numero}</div>
           </div>
-          <span class="car-mark" aria-hidden="true">
-            <span class="car-light"></span>
-          </span>
+          <span class="car-mark" aria-hidden="true"><span class="car-light"></span></span>
         </div>
         <span class="sensor-mark" aria-hidden="true"></span>
         <div class="parking-details">${details}</div>
@@ -96,126 +76,72 @@ function renderParkingMap(status) {
   }).join("");
 }
 
-function renderIndicators(status) {
-  freeCount.textContent = status.livres;
-  occupiedCount.textContent = status.ocupadas;
-  occupancyRate.textContent = `${status.taxaOcupacao}%`;
-  lcdFree.textContent = `${status.livres} ${status.livres === 1 ? "livre" : "livres"}`;
-  lcdList.textContent = `Vagas: ${formatVagasList(status.vagas.filter((vaga) => !vaga.ocupada).map((vaga) => vaga.numero))}`;
-}
+function renderIndicators() {
+  const livres = vagas.filter(v => !v.ocupada);
+  const ocupadas = TOTAL_VAGAS - livres.length;
 
-function renderAvailability(status) {
-  const livres = status.vagas.filter((vaga) => !vaga.ocupada);
+  freeCount.textContent = livres.length;
+  occupiedCount.textContent = ocupadas;
+  occupancyRate.textContent = `${Math.round((ocupadas / TOTAL_VAGAS) * 100)}%`;
+  lcdFree.textContent = `${livres.length} ${livres.length === 1 ? "livre" : "livres"}`;
+  lcdList.textContent = `Vagas: ${livres.length ? livres.map(v => v.numero).join(", ") : "--"}`;
 
-  if (livres.length === 0) {
+  if (!livres.length) {
     availabilityMessage.textContent = "ESTACIONAMENTO LOTADO";
     availabilityMessage.classList.add("full");
     availableList.innerHTML = "";
     return;
   }
-
-  availabilityMessage.textContent = "Estacionamento com vagas disponiveis";
+  availabilityMessage.textContent = "Estacionamento com vagas disponíveis";
   availabilityMessage.classList.remove("full");
   availableList.innerHTML = livres
-    .map((vaga) => `<span class="available-chip">Vaga ${vaga.numero}</span>`)
+    .map(v => `<span class="available-chip">Vaga ${v.numero}</span>`)
     .join("");
 }
 
-function renderHistory(history) {
-  if (!history.length) {
-    historyBody.innerHTML = '<tr><td colspan="7" class="empty-table">Nenhuma movimentacao registrada.</td></tr>';
-    return;
-  }
-
-  historyBody.innerHTML = history.map((event) => {
-    const dataHora = formatDateTime(event.dataHora);
-    const entrada = formatDateTime(event.entrada);
-    const saida = formatDateTime(event.saida);
-    const isEntry = event.tipo === "ENTRADA";
-
-    return `
-      <tr>
-        <td>${dataHora.date}</td>
-        <td>${dataHora.time}</td>
-        <td>Vaga ${event.vaga}</td>
-        <td><span class="event-badge ${isEntry ? "entry" : "exit"}">${isEntry ? "Entrada" : "Saida"}</span></td>
-        <td>${event.entrada ? entrada.time : "-"}</td>
-        <td>${event.saida ? saida.time : "-"}</td>
-        <td>${(event.saida && event.entrada ? formatDuration(secondsBetween(event.entrada, new Date(event.saida))) : "-")}</td>
-      </tr>
-    `;
-  }).join("");
-}
-
 function updateRunningDurations() {
-  if (!currentStatus) {
-    return;
-  }
-
-  currentStatus.vagas
-    .filter((vaga) => vaga.ocupada)
-    .forEach((vaga) => {
-      const element = document.querySelector(`[data-duration="${vaga.numero}"]`);
-      if (element) {
-        element.textContent = vaga.entradaAtual ? formatDuration(secondsBetween(vaga.entradaAtual)) : "--:--:--";
-      }
-    });
+  if (!vagas) return;
+  vagas.filter(v => v.ocupada).forEach(vaga => {
+    const el = document.querySelector(`[data-duration="${vaga.numero}"]`);
+    if (el) el.textContent = vaga.segundos === null ? "--:--:--" : formatDuration(segundosOcupada(vaga));
+  });
 }
 
-function renderAll(payload) {
-  currentStatus = payload.status;
-  setConnectionState(true, ParkingData.mode === "demo" ? "Demonstração local" : "Dados recebidos");
-  renderParkingMap(payload.status);
-  renderIndicators(payload.status);
-  renderAvailability(payload.status);
-  renderHistory(payload.historico || []);
-  lastUpdate.textContent = formatDateTime(payload.status.ultimaAtualizacao).time;
-  updateRunningDurations();
+function renderError(message) {
+  vagas = null;
+  setConnectionState(false, "Sem conexão com a ESP32");
+  availabilityMessage.textContent = message;
+  availabilityMessage.classList.remove("full");
+  availableList.innerHTML = "";
+  [freeCount, occupiedCount, occupancyRate, lcdFree].forEach(el => { el.textContent = "--"; });
+  lcdList.textContent = "Vagas: --";
+  parkingMap.textContent = "Aguardando leitura das quatro vagas.";
 }
 
-
-async function loadInitialData() {
-  if (loading) return;
-  loading = true;
+async function carregar() {
+  if (carregando) return;
+  carregando = true;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
   try {
-    renderAll(await ParkingData.read());
-    // O painel local usa a idade da leitura, inclusive antes do horario NTP.
-    const leituraLocal = ParkingData.mode === "esp32" && Number.isFinite(currentStatus.idadeLeituraMs);
-    const idade = leituraLocal ? currentStatus.idadeLeituraMs
-      : currentStatus.ultimaAtualizacao ? Date.now() - new Date(currentStatus.ultimaAtualizacao).getTime() : Infinity;
-    if (hardwareMode && idade > (leituraLocal ? 3000 : 30000)) {
-      setConnectionState(false, "Sem leitura recente dos sensores");
-      availabilityMessage.textContent = "Últimos dados recebidos — aguardando atualização dos sensores.";
-      availableList.innerHTML = "";
-      availabilityMessage.classList.remove("full");
-    }
+    const response = await fetch(API_URL, { cache: "no-store", signal: controller.signal });
+    if (!response.ok) throw new Error(`ESP32 respondeu com erro ${response.status}.`);
+    vagas = normalize(await response.json());
+    recebidoEm = Date.now();
+    setConnectionState(true, "Conectado à ESP32");
+    renderParkingMap();
+    renderIndicators();
+    updateRunningDurations();
+    lastUpdate.textContent = new Date().toLocaleTimeString("pt-BR");
   } catch (error) {
-    setConnectionState(false, "Sem conexão — dados indisponíveis ou desatualizados");
-    availabilityMessage.textContent = error.message;
-    availabilityMessage.classList.remove("full");
-    availableList.innerHTML = "";
-    currentStatus = null;
-    [freeCount, occupiedCount, occupancyRate, lcdFree].forEach(el => el.textContent = "--");
-    lcdList.textContent = "Vagas: --";
-    parkingMap.textContent = "Aguardando leitura válida das quatro vagas.";
-  } finally { loading = false; }
+    renderError(error.name === "AbortError" ? "A ESP32 não respondeu a tempo." : error.message);
+  } finally {
+    clearTimeout(timeout);
+    carregando = false;
+  }
 }
-hardwareMode = ParkingData.mode !== "demo";
-const modeLink = document.getElementById("mode-link");
-modeLink.href = hardwareMode ? "?modo=demo" : window.location.pathname;
-modeLink.textContent = hardwareMode ? "Testar demonstração local" : "Voltar ao painel conectado";
 
-databaseMode.textContent = hardwareMode ? (ParkingData.mode === "esp32" ? "Servidor: ESP32 local" : "Banco: Firebase") : "Dados: neste navegador";
-realtimeMode.textContent = hardwareMode ? "Atualização: a cada 3 segundos" : "Simulação local";
-apiEndpoint.textContent = hardwareMode ? (ParkingData.mode === "esp32" ? "/api/vagas" : "Cloud Firestore REST") : "LocalStorage";
-document.getElementById("endpoint-method").textContent = hardwareMode ? (ParkingData.mode === "esp32" ? "GET" : "FIREBASE") : "DEMO";
-document.getElementById("hardware-status").textContent = hardwareMode
-  ? "A ESP32 dos sensores envia as leituras por UART à ESP32 dos LEDs/LCD. O painel acompanha as quatro vagas."
-  : "Modo demonstração local. Os dados ficam somente neste navegador.";
-
-loadInitialData();
-timerId = window.setInterval(updateRunningDurations, 1000);
-if (hardwareMode) pollingId = window.setInterval(() => { if (!document.hidden) loadInitialData(); }, 3000);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) loadInitialData(); });
-window.addEventListener("storage", () => { if (!hardwareMode) loadInitialData(); });
-window.addEventListener("beforeunload", () => { clearInterval(timerId); clearInterval(pollingId); });
+carregar();
+setInterval(updateRunningDurations, 1000);
+setInterval(() => { if (!document.hidden) carregar(); }, INTERVALO_MS);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) carregar(); });

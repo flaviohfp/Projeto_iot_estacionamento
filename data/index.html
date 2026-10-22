@@ -4,19 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Estacionamento Inteligente</title>
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="topbar">
     <div>
       <p class="eyebrow">Projeto IoT - 4 vagas</p>
       <h1>Estacionamento Inteligente</h1>
-      <a id="mode-link" href="?modo=demo">Testar demonstração local</a>
     </div>
     <div class="system-status" aria-live="polite">
-      <span id="connection-dot" class="online-dot"></span>
+      <span id="connection-dot" class="online-dot offline"></span>
       <span id="connection-text">Conectando</span>
-      <small>Ultima atualizacao: <strong id="last-update">--:--:--</strong></small>
+      <small>Última atualização: <strong id="last-update">--:--:--</strong></small>
     </div>
   </header>
 
@@ -28,8 +27,8 @@
           <h2>Mapa das Vagas</h2>
         </div>
         <div class="health-row">
-          <span id="database-mode" class="health-chip">Banco: Firebase</span>
-          <span id="realtime-mode" class="health-chip">Tempo real: --</span>
+          <span class="health-chip">Servidor: ESP32</span>
+          <span class="health-chip">Atualização: a cada 2 s</span>
         </div>
       </div>
       <div class="parking-lot" aria-label="Mapa das quatro vagas do estacionamento">
@@ -47,7 +46,7 @@
         <strong id="occupied-count">--</strong>
       </article>
       <article class="metric-card">
-        <span>Taxa de Ocupacao</span>
+        <span>Taxa de Ocupação</span>
         <strong id="occupancy-rate">--</strong>
       </article>
       <article class="metric-card lcd-card">
@@ -60,7 +59,7 @@
     <section class="integration-grid">
       <div class="availability-section section-block">
         <div class="section-header">
-          <h2>Vagas disponiveis agora</h2>
+          <h2>Vagas disponíveis agora</h2>
         </div>
         <div id="availability-message" class="availability-message"></div>
         <div id="available-list" class="available-list"></div>
@@ -71,50 +70,20 @@
           <h2>Integração ESP32</h2>
         </div>
         <div class="endpoint-box">
-          <span id="endpoint-method">FIREBASE</span>
-          <code id="api-endpoint">Cloud Firestore</code>
+          <span>GET</span>
+          <code>/api/vagas</code>
         </div>
-        <p id="hardware-status" role="status">Verificando integração com a maquete...</p>
+        <p>A ESP32 lê os sensores e serve este painel. A página consulta as vagas a cada 2 segundos.</p>
         <div class="hardware-list" aria-label="Componentes da maquete">
-          <span>2 ESP32</span>
+          <span>ESP32</span>
           <span>4 HC-SR04</span>
           <span>4 LEDs RGB</span>
           <span>LCD I2C 16x2</span>
-          <span>NTP (horário)</span>
         </div>
       </div>
     </section>
-
-    <section class="section-block">
-      <div class="section-header">
-        <h2>Historico de Movimentacoes</h2>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Data</th>
-              <th>Hora</th>
-              <th>Vaga</th>
-              <th>Evento</th>
-              <th>Entrada</th>
-              <th>Saida</th>
-              <th>Tempo de permanencia</th>
-            </tr>
-          </thead>
-          <tbody id="history-body">
-            <tr>
-              <td colspan="7" class="empty-table">Nenhuma movimentacao registrada.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
   </main>
 
-  <script src="./config.js"></script>
-  <script src="./data.js"></script>
-  <script src="./script.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
